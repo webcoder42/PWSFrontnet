@@ -8,10 +8,8 @@
   ],
   "scripts": {
     "dev": "npm run dev --workspace=psw-plus",
-    "dev:all": "node run-all.js",
-    "dev:admin": "npm run dev --workspace=admin-dashboard-psw-plus",
-    "dev:client": "npm run dev --workspace=patient",
-    "dev:psw": "npm run dev --workspace=psw-plus",
+    "build": "npm run build --workspace=psw-plus",
+    "preview": "npm run preview --workspace=psw-plus",
     "install:all": "npm install"
   },
   "devDependencies": {

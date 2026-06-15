@@ -1,0 +1,171 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&family=Playfair+Display:ital,wght@0,400..900;1,400..900&display=swap');
+@import "tailwindcss";
+
+@theme {
+    --font-playfair: "Playfair Display", serif;
+    --font-dm: "DM Sans", sans-serif;
+    --font-inter: "Inter", sans-serif;
+
+    --radius-4xl: 2rem;
+    --radius-5xl: 2.5rem;
+    --radius-6xl: 3rem;
+    --radius-7xl: 3.5rem;
+
+    --width-mobile-sidebar: 400px;
+    --width-max-content: 700px;
+
+    --color-primary: #6a0dad;
+    --color-primary-dark: #5b0090;
+    --color-primary-light: #a855f7;
+    --color-primary-extralight: #f3f0ff;
+    
+    --color-accent: #ef2476;
+    --color-accent-extralight: #ffeded;
+    
+    --color-warning: #f59e0b;
+    --color-warning-extralight: #fef3c7;
+    
+    --color-surface: #fbf5fc;
+    --color-surface-alt: #fcfafc;
+    --color-surface-card: #f4efff;
+    
+    --color-text-muted: #64748b;
+
+    --color-surface-vibrant: #f8f7ff;
+    --color-info: #2cb5e8;
+    --color-info-light: #ccf2ff;
+    --color-border-soft: #e2daf5;
+    --color-bg-slider: #e2dcfc;
+
+    --color-stripe: #635bff;
+    --color-paypal: #003087;
+    --color-bitcoin: #f7931a;
+
+    --color-accent-light: #ffdae9;
+    --color-surface-pure: #fcfaff;
+    --color-chat-bubble-patient: #e7fedb;
+    --color-chat-bg: #f0f2f5;
+    
+    --background-image-gradient-purple: linear-gradient(135deg, #5b0090 0%, #812bc3 50%, #a855f7 100%);
+    --background-image-gradient-pink: linear-gradient(135deg, #ef2476 0%, #bc1c5d 50%, #891544 100%);
+
+    --shadow-logs: 0 10px 40px rgba(0,0,0,0.05);
+}
+
+@layer base {
+    html {
+        padding: 0;
+        margin: 0;
+        scroll-behavior: smooth;
+    }
+
+    body {
+        padding: 0;
+        margin: 0;
+        font-family: var(--font-dm);
+        background-color: #ffffff;
+    }
+
+    * {
+        padding: 0;
+        margin: 0;
+        box-sizing: border-box;
+    }
+
+    ul {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    li {
+        list-style: none;
+        margin: 0;
+        padding: 0;
+    }
+
+    a {
+        display: inline-block;
+        text-decoration: none;
+        transition: 0.3s linear;
+        cursor: pointer;
+    }
+
+    button {
+        cursor: pointer;
+    }
+
+    a:hover {
+        text-decoration: none;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4,
+    h5,
+    h6 {
+        margin: 0;
+        padding: 0;
+        font-family: var(--font-playfair);
+    }
+
+    img {
+        max-width: 100%;
+        height: auto;
+    }
+}
+
+@utility container {
+    width: 100%;
+    padding-inline: 20px;
+    margin-inline: auto;
+}
+
+@utility bg-hero-purple {
+    background-image: var(--background-image-gradient-purple);
+}
+
+@utility shadow-logs {
+    box-shadow: var(--shadow-logs);
+}
+
+.btn-gradient-pink {
+    background-color: var(--color-accent);
+    background-image: var(--background-image-gradient-pink);
+    background-size: 200% auto;
+    transition: all 0.5s ease;
+}
+
+.btn-gradient-pink:hover {
+    background-position: 100% 0;
+}
+
+@utility bg-gradient-primary {
+    background-image: linear-gradient(to right, var(--color-primary), var(--color-primary-light));
+}
+
+@utility bg-gradient-purple {
+    background-image: linear-gradient(to right, #5b0090, #812bc3, #a855f7);
+}
+
+@utility bg-gradient-pink {
+    background-image: linear-gradient(to right, #ef2476, #bc1c5d);
+}
+
+@utility bg-gradient-pink-light {
+    background-image: linear-gradient(to right, #e8355b, #e5a6bc);
+}
+
+@utility bg-gradient-green {
+    background-image: linear-gradient(to right, #1a7a4a, #25ad69, #30e088);
+}
+
+@utility chat-doodle-bg {
+    background-color: #f7f5fe;
+    background-image: url("https://i.pinimg.com/474x/a8/95/f5/a895f57be9337055c4157d78b5547d59.jpg");
+    background-attachment: fixed;
+    background-size: contain;
+    background-repeat: repeat;
+    background-blend-mode: multiply;
+}

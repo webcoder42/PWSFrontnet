@@ -1,0 +1,4 @@
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/wsnqshklcmeb/public_html/
+    - /bin/cp -R PWS/dist/* $DEPLOYPATH

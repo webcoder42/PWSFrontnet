@@ -1,6 +1,39 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import { bookingServices, findBookingService, computeBookingEstimate, formatRate } from '../../../utils/servicePricing';
 
-const BookingStep3 = ({ assignment, onUpdate, onBack, onContinue }) => (
+const DURATIONS = [
+  { label: '30 minutes', value: '30 min' },
+  { label: '1 hour', value: '1 hour' },
+  { label: '1.5 hours', value: '1.5 hours' },
+  { label: '2 hours', value: '2 hours' },
+  { label: '3 hours', value: '3 hours' },
+];
+
+const BookingStep3 = ({ assignment, onUpdate, onBack, onContinue }) => {
+  const selectedService = findBookingService(assignment.type);
+  const [durationMinutes, setDurationMinutes] = React.useState(60);
+
+  const estimate = useMemo(() => {
+    if (!selectedService) return null;
+    return computeBookingEstimate(selectedService, durationMinutes);
+  }, [selectedService, durationMinutes]);
+
+  const durationMinutesMap = {
+    '30 min': 30,
+    '1 hour': 60,
+    '1.5 hours': 90,
+    '2 hours': 120,
+    '3 hours': 180,
+  };
+
+  const handleDurationChange = (d) => {
+    const mins = durationMinutesMap[d.value] || 60;
+    setDurationMinutes(mins);
+    const est = selectedService ? computeBookingEstimate(selectedService, mins) : null;
+    onUpdate({ duration: d.value, price: est?.total || 30 });
+  };
+
+  return (
   <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
     <div className="mb-12">
       <h2 className="text-4xl font-bold text-gray-900 mb-3 font-serif tracking-tight">Select Date & Time</h2>
@@ -38,6 +71,34 @@ const BookingStep3 = ({ assignment, onUpdate, onBack, onContinue }) => (
             ))}
           </div>
         </div>
+
+        <div className="bg-white p-10 rounded-[2.5rem] border border-gray-50 shadow-[0_20px_50px_rgba(0,0,0,0.02)]">
+          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6 block ml-1">Duration</label>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-5">
+            {DURATIONS.map((d) => (
+              <button
+                key={d.value}
+                onClick={() => handleDurationChange(d)}
+                className={`py-4 rounded-2xl border-2 text-[10px] font-bold uppercase tracking-widest transition-all ${
+                  assignment.duration === d.value ? 'bg-purple-600 border-purple-600 text-white shadow-xl shadow-purple-100' : 'bg-white border-gray-50 text-gray-700 hover:border-purple-200'
+                }`}
+              >
+                {d.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="bg-white p-10 rounded-[2.5rem] border border-gray-50 shadow-[0_20px_50px_rgba(0,0,0,0.02)]">
+          <label className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-6 block ml-1">Location</label>
+          <input
+            type="text"
+            value={assignment.location || ''}
+            onChange={(e) => onUpdate({ location: e.target.value })}
+            placeholder="e.g. 123 Queen St."
+            className="w-full p-6 bg-[#F9F7FF] border border-purple-50 rounded-[1.75rem] text-xl font-bold text-gray-900 font-serif outline-none focus:border-purple-200 transition-all"
+          />
+        </div>
       </div>
 
       {/* Summary Column */}
@@ -61,6 +122,21 @@ const BookingStep3 = ({ assignment, onUpdate, onBack, onContinue }) => (
               <p className="text-[8px] text-gray-400 uppercase font-bold tracking-widest mb-1">Schedule</p>
               <p className="text-sm font-bold text-gray-900">{assignment.date} @ {assignment.time}</p>
             </div>
+            <div>
+              <p className="text-[8px] text-gray-400 uppercase font-bold tracking-widest mb-1">Duration</p>
+              <p className="text-sm font-bold text-gray-900">{assignment.duration || 'Not set'}</p>
+            </div>
+            <div>
+              <p className="text-[8px] text-gray-400 uppercase font-bold tracking-widest mb-1">Location</p>
+              <p className="text-sm font-bold text-gray-900">{assignment.location || 'Not set'}</p>
+            </div>
+            {estimate && (
+              <div className="pt-4 border-t border-gray-50">
+                <p className="text-[8px] text-gray-400 uppercase font-bold tracking-widest mb-1">Estimated Cost</p>
+                <p className="text-lg font-bold text-purple-600">${formatRate(estimate.total)}</p>
+                <p className="text-[8px] text-gray-400 mt-1">${formatRate(estimate.hourlyRate)}/hr · ${formatRate(estimate.tax)} tax · ${formatRate(estimate.platformFee)} fee</p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -76,6 +152,7 @@ const BookingStep3 = ({ assignment, onUpdate, onBack, onContinue }) => (
       </button>
     </div>
   </div>
-);
+  );
+};
 
 export default BookingStep3;

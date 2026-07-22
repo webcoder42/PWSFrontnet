@@ -16,7 +16,7 @@ const BookingStep1 = ({ selectedService, onServiceSelect, onBack, onContinue }) 
     <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
       {/* Editorial Header */}
       <div className="mb-12">
-        <h2 className="text-4xl font-bold text-gray-900 mb-3 font-serif tracking-tight">Select a Service Type</h2>
+        <h2 className="text-2xl md:text-4xl font-bold text-gray-900 mb-3 font-serif tracking-tight">Select a Service Type</h2>
         <div className="flex items-center text-xs font-bold text-purple-600 uppercase tracking-widest bg-purple-50 px-4 py-2 rounded-xl w-fit border border-purple-100">
            Step 01 <span className="mx-2 opacity-30 text-gray-400">·</span> <span className="text-gray-400">Clinical Focus</span>
         </div>
@@ -28,7 +28,7 @@ const BookingStep1 = ({ selectedService, onServiceSelect, onBack, onContinue }) 
           <button 
             key={service.id}
             onClick={() => onServiceSelect(service)}
-            className={`flex flex-col items-start p-8 rounded-[2.5rem] border-2 transition-all text-left relative overflow-hidden group ${
+            className={`flex flex-col items-start p-6 md:p-8 rounded-[2.5rem] border-2 transition-all text-left relative overflow-hidden group ${
               selectedService?.id === service.id 
                 ? 'border-[#5915BD] bg-[#F9F7FF] shadow-[0_20px_50px_rgba(89,21,189,0.08)]' 
                 : 'border-gray-50 bg-white hover:border-purple-100 hover:shadow-xl hover:shadow-gray-100/50'
@@ -49,9 +49,7 @@ const BookingStep1 = ({ selectedService, onServiceSelect, onBack, onContinue }) 
             <p className="text-gray-400 text-xs leading-relaxed mb-6 font-medium">{service.description}</p>
             
             <div className="mt-auto flex items-center justify-between w-full pt-4 border-t border-gray-50/50">
-               <span className="text-[9px] font-bold text-gray-300 uppercase tracking-[0.2em]">
-                 ${service.payAsYouGoRate?.toFixed(2)}/hr · {service.time}
-               </span>
+               <span className="text-[9px] font-bold text-gray-300 uppercase tracking-[0.2em]">{service.time}</span>
                {selectedService?.id === service.id && (
                  <div className="bg-[#5915BD] w-6 h-6 rounded-full flex items-center justify-center text-white shadow-lg animate-scale-in">
                     <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7" /></svg>
@@ -63,7 +61,7 @@ const BookingStep1 = ({ selectedService, onServiceSelect, onBack, onContinue }) 
       </div>
 
       {/* Clinical Notes Section */}
-      <div className="mt-16 bg-white rounded-[2.5rem] p-10 border border-gray-50 shadow-[0_20px_60px_rgba(0,0,0,0.02)] relative overflow-hidden">
+      <div className="mt-16 bg-white rounded-[2.5rem] p-6 md:p-10 border border-gray-50 shadow-[0_20px_60px_rgba(0,0,0,0.02)] relative overflow-hidden">
          <div className="absolute top-0 right-0 w-32 h-32 bg-gray-50/50 rounded-bl-[100%] opacity-50"></div>
          <div className="flex items-center gap-4 mb-6">
             <div className="w-10 h-10 bg-purple-50 text-purple-600 rounded-xl flex items-center justify-center"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" /></svg></div>
@@ -87,7 +85,7 @@ const BookingStep1 = ({ selectedService, onServiceSelect, onBack, onContinue }) 
         <button 
           onClick={onContinue}
           disabled={!selectedService}
-          className={`px-12 py-5 rounded-[1.5rem] font-bold flex items-center transition-all uppercase tracking-widest text-[11px] ${
+           className={`px-6 md:px-12 py-4 md:py-5 rounded-[1.5rem] font-bold flex items-center transition-all uppercase tracking-widest text-[11px] ${
             selectedService 
               ? 'bg-gradient-to-r from-[#5915BD] to-[#7C3AED] text-white shadow-xl shadow-purple-100 hover:shadow-purple-200 hover:-translate-y-1' 
               : 'bg-gray-100 text-gray-400 cursor-not-allowed'

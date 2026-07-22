@@ -125,13 +125,13 @@ export function toApiStatus(status: DisplayStatus): ApiAppointmentStatus {
   return status.toLowerCase() as ApiAppointmentStatus;
 }
 
-/** Pending → Confirm or Cancel; Confirmed → Complete or Cancel */
+/** Pending → Confirm or Cancel */
 export function getStatusActions(status: DisplayStatus) {
   return {
     canConfirm: status === 'PENDING',
-    canComplete: status === 'CONFIRMED',
-    canCancel: status === 'PENDING' || status === 'CONFIRMED',
-    showActions: status === 'PENDING' || status === 'CONFIRMED',
+    canComplete: status === 'CONFIRMED' || status === 'Active' || status === 'ACTIVE',
+    canCancel: status === 'PENDING',
+    showActions: status === 'PENDING' || status === 'CONFIRMED' || status === 'Active' || status === 'ACTIVE',
   };
 }
 
@@ -211,7 +211,7 @@ export type EarningsOverview = {
 const EARNINGS_STATUSES = new Set(['pending', 'confirmed', 'completed']);
 
 export function formatEarningsAmount(amount: number): string {
-  return `$${Math.round(amount).toLocaleString()}`;
+  return `$${amount.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 export function computeEarningsOverview(
@@ -231,9 +231,8 @@ export function computeEarningsOverview(
 
   for (const appt of appointments) {
     const status = String(appt.status || '').toLowerCase();
-    const isReleased = appt.paymentReleasedStatus === 'released' ||
-      (!appt.paymentReleasedStatus && (status === 'confirmed' || status === 'completed'));
-    if (!isReleased) continue;
+    const paymentStatus = String((appt.payment as Record<string, unknown>)?.status || '').toLowerCase();
+    if (status !== 'completed' || paymentStatus !== 'paid') continue;
 
     const apptDate = parseAppointmentDate(appt as { appointmentDate?: string | Date; date?: string });
     const price = Number(appt.price) || 0;
@@ -254,9 +253,8 @@ export function computeTodaySummary(appointments: Record<string, unknown>[]) {
     const d = parseAppointmentDate(appt as { appointmentDate?: string | Date; date?: string });
     d.setHours(0, 0, 0, 0);
     const status = String(appt.status || '').toLowerCase();
-    const isReleased = appt.paymentReleasedStatus === 'released' ||
-      (!appt.paymentReleasedStatus && (status === 'confirmed' || status === 'completed'));
-    return d.getTime() === today.getTime() && isReleased;
+    const paymentStatus = String((appt.payment as Record<string, unknown>)?.status || '').toLowerCase();
+    return d.getTime() === today.getTime() && status === 'completed' && paymentStatus === 'paid';
   });
 
   const hours = todayAppts.reduce(

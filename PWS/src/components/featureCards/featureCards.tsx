@@ -44,7 +44,7 @@ const FeatureCards = () => {
 
             <div className="bg-white/10 border border-white/20 rounded-2xl p-4 mb-8 inline-block relative z-10 backdrop-blur-sm">
               <div className="text-white/70 text-[10px] md:text-xs uppercase tracking-wider mb-1">Average Earnings</div>
-              <div className="text-xl md:text-2xl font-bold">$25.00 - $35.00 <span className="text-xs md:text-sm font-normal text-white/70">/ hr</span></div>
+              <div className="text-xl md:text-2xl font-bold">$19.00 - $28.00 <span className="text-xs md:text-sm font-normal text-white/70">/ hr</span></div>
             </div>
 
             <ul className="space-y-4 mb-10 relative z-10">

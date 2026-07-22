@@ -43,7 +43,9 @@ const ProviderLocationDetails: React.FC<ProviderLocationDetailsProps> = ({ formD
           
           if (data && data.address) {
             const addr = data.address;
-            const street = addr.road || addr.pedestrian || addr.path || addr.suburb || '';
+            const houseNumber = addr.house_number || '';
+            const roadName = addr.road || addr.pedestrian || addr.path || addr.suburb || '';
+            const street = [houseNumber, roadName].filter(Boolean).join(' ') || addr.name || '';
             const majorCity = addr.city || addr.town || addr.municipality || addr.state || '';
             const province = addr.state_code || addr.state || '';
             const postalCode = addr.postcode || '';
@@ -53,7 +55,9 @@ const ProviderLocationDetails: React.FC<ProviderLocationDetailsProps> = ({ formD
               streetAddress: street,
               city: majorCity,
               province: province,
-              postalCode: postalCode
+              postalCode: postalCode,
+              latitude,
+              longitude
             });
             
             const cleanSearch = [street, majorCity].filter(Boolean).join(', ');
@@ -72,9 +76,25 @@ const ProviderLocationDetails: React.FC<ProviderLocationDetailsProps> = ({ formD
     );
   };
 
-  const handleUpdateMap = () => {
+  const handleUpdateMap = async () => {
     const newQuery = [formData.streetAddress, formData.city].filter(Boolean).join(', ');
-    if (newQuery) setSearchQuery(newQuery);
+    if (!newQuery) return;
+    setSearchQuery(newQuery);
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(newQuery)}&limit=1`
+      );
+      const data = await response.json();
+      if (Array.isArray(data) && data.length > 0) {
+        const lat = parseFloat(data[0].lat);
+        const lng = parseFloat(data[0].lon);
+        if (!isNaN(lat) && !isNaN(lng)) {
+          setFormData(prev => ({ ...prev, latitude: lat, longitude: lng }));
+        }
+      }
+    } catch (error) {
+      console.error("Forward geocoding error:", error);
+    }
   };
 
   const mapUrl = `https://maps.google.com/maps?q=${encodeURIComponent(searchQuery)}&t=&z=13&ie=UTF8&iwloc=&output=embed`;

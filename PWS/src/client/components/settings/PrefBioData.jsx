@@ -1,59 +1,27 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import Breadcrumb from './Breadcrumb';
-import { useUser } from '../../../context/UserContext';
-import { updateUserPhysicalStatsAPI } from '../../../utils/api';
+import { useUser } from '../../context/UserContext';
 
 const PrefBioData = ({ setView }) => {
-  const { rawUser, setUser } = useUser();
-  const [heightValue, setHeightValue] = useState(165);
-  const [weightValue, setWeightValue] = useState(70);
-  const [heightUnit, setHeightUnit] = useState('cm');
-  const [weightUnit, setWeightUnit] = useState('kg');
-  const [isSaving, setIsSaving] = useState(false);
-  const [message, setMessage] = useState('');
-  const [error, setError] = useState('');
+  const { user, updateUser } = useUser();
+  const [heightValue, setHeightValue] = useState(user?.physicalStats?.height || 50);
+  const [weightValue, setWeightValue] = useState(user?.physicalStats?.weight || 120);
+  const [gender, setGender] = useState(user?.gender || 'Male');
 
-  useEffect(() => {
-    if (!rawUser?.physicalStats) return;
-
-    const storedHeight = rawUser.physicalStats.height;
-    const storedWeight = rawUser.physicalStats.weight;
-
-    if (storedHeight?.value !== undefined) setHeightValue(Number(storedHeight.value));
-    if (storedHeight?.unit) setHeightUnit(storedHeight.unit);
-    if (storedWeight?.value !== undefined) setWeightValue(Number(storedWeight.value));
-    if (storedWeight?.unit) setWeightUnit(storedWeight.unit);
-  }, [rawUser]);
-
-  const heightMin = heightUnit === 'ft' ? 48 : 120;
-  const heightMax = heightUnit === 'ft' ? 84 : 215;
-  const weightMin = weightUnit === 'lbs' ? 80 : 35;
-  const weightMax = weightUnit === 'lbs' ? 250 : 115;
-
-  const saveChanges = async () => {
-    if (!rawUser?._id) return;
-
-    setIsSaving(true);
-    setMessage('');
-    setError('');
-
-    try {
-      const response = await updateUserPhysicalStatsAPI(rawUser._id, {
-        height: { value: heightValue, unit: heightUnit },
-        weight: { value: weightValue, unit: weightUnit },
-      });
-
-      const updatedUser = {
-        ...rawUser,
-        ...(response?.data ?? response ?? {}),
-      };
-      setUser(updatedUser);
-      setMessage('Bio data saved successfully.');
-    } catch (err) {
-      setError(err?.message || 'Unable to save bio data.');
-    } finally {
-      setIsSaving(false);
+  const handleSave = async () => {
+    updateUser({
+      gender,
+      physicalStats: { height: heightValue, weight: weightValue }
+    });
+    if (user?._id) {
+      try {
+        const { updateUserProfileAPI } = await import('../../utils/api');
+        await updateUserProfileAPI(user._id, { gender });
+        const { updatePhysicalStatsAPI } = await import('../../utils/api');
+        await updatePhysicalStatsAPI(user._id, { height: heightValue, weight: weightValue });
+      } catch {}
     }
+    setView('preferences');
   };
 
   return (
@@ -69,14 +37,29 @@ const PrefBioData = ({ setView }) => {
 
     <div className="space-y-6">
       <div className="bg-white border border-gray-200 rounded-[1.5rem] shadow-sm p-8">
+         <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-6">Gender</h3>
+         <div className="flex gap-4">
+           {['Male', 'Female', 'Other'].map(g => (
+             <button
+               key={g}
+               onClick={() => setGender(g)}
+               className={`flex-1 py-3 rounded-xl border text-sm font-medium transition-all ${gender === g ? 'bg-[#f3e8ff] border-[#8b5cf6] text-[#7c3aed]' : 'bg-white border-gray-200 text-gray-600 hover:border-[#8b5cf6]'}`}
+             >
+               {g}
+             </button>
+           ))}
+         </div>
+      </div>
+
+      <div className="bg-white border border-gray-200 rounded-[1.5rem] shadow-sm p-8">
          <h3 className="text-[10px] font-bold text-gray-500 uppercase tracking-widest mb-10">Height</h3>
          <div className="relative mb-6">
             <input 
               type="range" 
-              min={heightMin} max={heightMax} 
+              min="0" max="100" 
               value={heightValue} 
-              onChange={(e) => setHeightValue(Number(e.target.value))} 
-              style={{ background: `linear-gradient(to right, #7c3aed ${(heightValue - heightMin) / (heightMax - heightMin) * 100}%, #e9d5ff ${(heightValue - heightMin) / (heightMax - heightMin) * 100}%)` }}
+              onChange={(e) => setHeightValue(e.target.value)} 
+              style={{ background: `linear-gradient(to right, #7c3aed ${heightValue}%, #e9d5ff ${heightValue}%)` }}
               className="w-full h-2 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-8 [&::-webkit-slider-thumb]:h-8 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-solid [&::-webkit-slider-thumb]:border-[6px] [&::-webkit-slider-thumb]:border-[#7c3aed] [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-lg [&::-moz-range-thumb]:w-8 [&::-moz-range-thumb]:h-8 [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-solid [&::-moz-range-thumb]:border-[6px] [&::-moz-range-thumb]:border-[#7c3aed] [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:shadow-lg" 
             />
          </div>
@@ -95,10 +78,10 @@ const PrefBioData = ({ setView }) => {
          <div className="relative mb-6">
             <input 
               type="range" 
-              min={weightMin} max={weightMax} 
+              min="0" max="100" 
               value={weightValue} 
-              onChange={(e) => setWeightValue(Number(e.target.value))} 
-              style={{ background: `linear-gradient(to right, #7c3aed ${(weightValue - weightMin) / (weightMax - weightMin) * 100}%, #e9d5ff ${(weightValue - weightMin) / (weightMax - weightMin) * 100}%)` }}
+              onChange={(e) => setWeightValue(e.target.value)} 
+              style={{ background: `linear-gradient(to right, #7c3aed ${weightValue}%, #e9d5ff ${weightValue}%)` }}
               className="w-full h-2 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-8 [&::-webkit-slider-thumb]:h-8 [&::-webkit-slider-thumb]:bg-white [&::-webkit-slider-thumb]:border-solid [&::-webkit-slider-thumb]:border-[6px] [&::-webkit-slider-thumb]:border-[#7c3aed] [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-lg [&::-moz-range-thumb]:w-8 [&::-moz-range-thumb]:h-8 [&::-moz-range-thumb]:bg-white [&::-moz-range-thumb]:border-solid [&::-moz-range-thumb]:border-[6px] [&::-moz-range-thumb]:border-[#7c3aed] [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:shadow-lg" 
             />
          </div>
@@ -115,18 +98,8 @@ const PrefBioData = ({ setView }) => {
       </div>
     </div>
 
-    <button
-      onClick={saveChanges}
-      disabled={isSaving}
-      className={`w-full mt-10 py-5 rounded-[2rem] font-bold text-base transition-colors ${isSaving ? 'bg-[#c4b5fd] text-white cursor-not-allowed' : 'bg-[#8b5cf6] hover:bg-[#7c3aed] text-white'}`}
-    >
-      {isSaving ? 'Saving...' : 'Save Changes'}
-    </button>
-
-    {message ? <p className="mt-4 text-sm text-emerald-600">{message}</p> : null}
-    {error ? <p className="mt-4 text-sm text-red-600">{error}</p> : null}
+    <button onClick={handleSave} className="w-full mt-10 py-5 bg-[#8b5cf6] hover:bg-[#7c3aed] text-white rounded-[2rem] font-bold text-base transition-colors">Save Changes</button>
   </div>
-  );
-};
+)};
 
 export default PrefBioData;

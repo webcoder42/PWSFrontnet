@@ -1,8 +1,21 @@
 import React, { useState } from 'react';
 import Breadcrumb from './Breadcrumb';
+import { useUser } from '../../context/UserContext';
+import { updateUserProfileAPI } from '../../utils/api';
 
 const PrefCareProvider = ({ setView }) => {
-  const [prefCareProvider, setPrefCareProvider] = useState('Female');
+  const { user, updateUser } = useUser();
+  const rp = user?.recipientProfile || {};
+  const [prefCareProvider, setPrefCareProvider] = useState(rp.preferredProviderGender || 'No Preference');
+
+  const handleSave = async () => {
+    const updated = { ...rp, preferredProviderGender: prefCareProvider };
+    updateUser({ recipientProfile: updated });
+    if (user?._id) {
+      try { await updateUserProfileAPI(user._id, { recipientProfile: updated }); } catch {}
+    }
+    setView('preferences');
+  };
 
   return (
   <div className="animate-fade-in max-w-4xl mx-auto pb-20">
@@ -21,7 +34,7 @@ const PrefCareProvider = ({ setView }) => {
       ))}
     </div>
 
-    <button onClick={() => setView('preferences')} className="w-full mt-8 py-5 bg-[#8b5cf6] hover:bg-[#7c3aed] text-white rounded-[2rem] font-bold text-base transition-colors">Save</button>
+    <button onClick={handleSave} className="w-full mt-8 py-5 bg-[#8b5cf6] hover:bg-[#7c3aed] text-white rounded-[2rem] font-bold text-base transition-colors">Save</button>
   </div>
 )};
 

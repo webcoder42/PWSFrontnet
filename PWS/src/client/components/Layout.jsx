@@ -1,13 +1,17 @@
 import React, { useState } from 'react';
 import pswPlusLogo from '../assets/PSW+ Logo.png';
-import { useUser } from '../../context/UserContext';
-import { useNotificationCenter } from '../../context/NotificationCenterContext';
+import { useNotificationCenter } from '../context/NotificationCenterContext';
+import { useUser } from '../context/UserContext';
 
 const Layout = ({ children, activeTab, onTabChange }) => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
-  const { profile } = useUser();
-  const { notifications, unreadCount, markRead, markAllRead, removeNotification } = useNotificationCenter();
+  const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
+  const { notifications, unreadCount, markAllRead, markRead, removeNotification } = useNotificationCenter();
+  const { user } = useUser();
+  const rawUserName = [user?.firstName, user?.lastName].filter(Boolean).join(' ').trim();
+  const userFullName = rawUserName || user?.fullName || user?.name || 'User';
+  const profileImage = user?.photoUrl || user?.profilePhoto || user?.avatar || user?.image || `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(userFullName || 'User')}`;
   const unreadNotifications = notifications.filter((item) => !item.read);
 
   const formatAgo = (iso) => {
@@ -18,6 +22,10 @@ const Layout = ({ children, activeTab, onTabChange }) => {
     if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`;
     if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h ago`;
     return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  };
+
+  const openNotifications = () => {
+    setIsNotificationsOpen((prev) => !prev);
   };
 
   const sidebarItems = [
@@ -103,25 +111,20 @@ const Layout = ({ children, activeTab, onTabChange }) => {
         </nav>
 
         <div className="p-4 mt-auto border-t border-gray-100">
-          <div className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'space-x-3'} bg-gray-50 p-3 rounded-xl transition-all`}>
-            {profile?.photoUrl ? (
-              <img 
-                src={profile.photoUrl} 
-                alt={profile.name || 'User'} 
-                className="w-10 h-10 rounded-full border-2 border-white shadow-sm shrink-0 object-cover"
-              />
-            ) : (
-              <div className="w-10 h-10 rounded-full border-2 border-white shadow-sm shrink-0 bg-purple-600 text-white flex items-center justify-center font-extrabold text-xs">
-                {profile?.initials || 'U'}
-              </div>
-            )}
+          <div onClick={() => onTabChange('Settings')} className={`flex items-center ${isSidebarCollapsed ? 'justify-center' : 'space-x-3'} bg-gray-50 p-3 rounded-xl transition-all cursor-pointer hover:bg-purple-50 group`}>
+            <img 
+              src={profileImage} 
+              alt="User" 
+              className="w-10 h-10 rounded-full border-2 border-white shadow-sm shrink-0 object-cover"
+            />
             {!isSidebarCollapsed && (
               <>
                 <div className="flex-1 min-w-0 animate-fade-in">
-                  <p className="text-sm font-bold truncate">{profile?.name || 'User'}</p>
+                  <p className="text-sm font-bold truncate group-hover:text-purple-700">{userFullName}</p>
                 </div>
-                <svg className="w-4 h-4 text-gray-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                <svg className="w-4 h-4 text-gray-400 shrink-0 group-hover:text-purple-500 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
               </>
             )}
@@ -133,12 +136,17 @@ const Layout = ({ children, activeTab, onTabChange }) => {
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
         {/* Top Header (Shared) */}
         <header className="h-20 flex-shrink-0 bg-white/50 backdrop-blur-sm border-b border-gray-100 flex items-center justify-between px-4 md:px-10 z-10">
-          <div className="flex items-center lg:hidden">
-             <img src={pswPlusLogo} className="h-8 object-contain" alt="PSW+" />
+          <div className="flex items-center gap-3 lg:hidden">
+            <button onClick={() => setIsMobileDrawerOpen(true)} className="p-2 hover:bg-gray-50 rounded-xl text-gray-600">
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+            <img src={pswPlusLogo} className="h-8 object-contain" alt="PSW+" />
           </div>
           <div className="hidden md:block">
             <h1 className="text-lg font-bold flex items-center gap-2">
-              Hi, {profile?.name || 'User'} <span className="text-lg">👋</span>
+              Hi, {userFullName} <span className="text-lg">👋</span>
             </h1>
             <p className="text-gray-400 text-[10px] uppercase font-bold tracking-widest leading-none">Good morning</p>
           </div>
@@ -152,7 +160,7 @@ const Layout = ({ children, activeTab, onTabChange }) => {
             </div>
             
             <div className="relative">
-            <button onClick={() => setIsNotificationsOpen((prev) => !prev)} className="relative p-2 bg-white rounded-xl shadow-sm border border-gray-50 flex-shrink-0">
+            <button onClick={openNotifications} className="relative p-2 bg-white rounded-xl shadow-sm border border-gray-50 flex-shrink-0">
               <svg className="w-5 h-5 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/></svg>
             </button>
             {unreadCount > 0 && (
@@ -198,20 +206,61 @@ const Layout = ({ children, activeTab, onTabChange }) => {
               </div>
             )}
             </div>
-            {profile?.photoUrl ? (
-              <img src={profile.photoUrl} alt={profile.name || 'User'} className="w-10 h-10 rounded-xl shadow-md border-2 border-white flex-shrink-0 object-cover" />
-            ) : (
-              <div className="w-10 h-10 rounded-xl shadow-md border-2 border-white flex-shrink-0 bg-purple-600 text-white flex items-center justify-center font-extrabold text-xs">
-                {profile?.initials || 'U'}
-              </div>
-            )}
+            <img src={profileImage} alt="Profile" className="w-10 h-10 rounded-xl shadow-md border-2 border-white flex-shrink-0 object-cover" />
           </div>
         </header>
 
         {/* Dynamic Content */}
-        <main className="flex-1 overflow-y-auto p-4 md:p-10 bg-[#F9FAFB]">
+        <main className="flex-1 overflow-y-auto p-4 md:p-10 bg-[#F9FAFB] pb-20 lg:pb-4">
           {children}
         </main>
+
+        {/* Mobile Drawer Overlay */}
+        {isMobileDrawerOpen && (
+          <div className="lg:hidden fixed inset-0 z-50">
+            <div className="absolute inset-0 bg-black/40" onClick={() => setIsMobileDrawerOpen(false)} />
+            <aside className="absolute left-0 top-0 bottom-0 w-72 bg-white shadow-2xl flex flex-col">
+              <div className="p-6 flex items-center justify-between border-b border-gray-100">
+                <img src={pswPlusLogo} className="h-8 object-contain" alt="PSW+" />
+                <button onClick={() => setIsMobileDrawerOpen(false)} className="p-2 hover:bg-gray-50 rounded-xl text-gray-400">
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              <nav className="flex-1 px-4 py-4 space-y-2 overflow-y-auto">
+                {sidebarItems.map((item) => (
+                  <button
+                    key={item.name}
+                    onClick={() => { onTabChange(item.name); setIsMobileDrawerOpen(false); }}
+                    className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-all ${
+                      activeTab === item.name
+                        ? 'bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg shadow-purple-200'
+                        : 'text-gray-500 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div className={`shrink-0 ${activeTab === item.name ? 'text-white' : 'text-gray-400'}`}>
+                      {item.icon}
+                    </div>
+                    <span className="font-medium text-sm whitespace-nowrap">{item.name}</span>
+                  </button>
+                ))}
+              </nav>
+              <div className="p-4 border-t border-gray-100">
+                <div onClick={() => { onTabChange('Settings'); setIsMobileDrawerOpen(false); }} className="flex items-center space-x-3 bg-gray-50 p-3 rounded-xl cursor-pointer hover:bg-purple-50 group">
+                  <img
+                    src={profileImage}
+                    alt="User"
+                    className="w-10 h-10 rounded-full border-2 border-white shadow-sm shrink-0 object-cover"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold truncate group-hover:text-purple-700">{userFullName}</p>
+                  </div>
+                </div>
+              </div>
+            </aside>
+          </div>
+        )}
       </div>
     </div>
   );

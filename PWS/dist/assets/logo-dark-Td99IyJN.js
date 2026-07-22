@@ -1,0 +1,1 @@
+var e=`/assets/logo-dark-Dxl3Z0dU.png`;export{e as t};

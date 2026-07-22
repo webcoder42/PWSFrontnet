@@ -1,7 +1,49 @@
-import React from 'react';
+import React, { useState } from 'react';
 import Breadcrumb from './Breadcrumb';
+import { useUser } from '../../context/UserContext';
+import { updateUserProfileAPI } from '../../utils/api';
 
-const PrefAllergies = ({ setView }) => (
+const PrefAllergies = ({ setView }) => {
+  const { user, updateUser } = useUser();
+  const rp = user?.recipientProfile || {};
+  const [allergies, setAllergies] = useState(rp.allergies || []);
+  const [medications, setMedications] = useState(rp.medications || []);
+  const [newAllergy, setNewAllergy] = useState('');
+  const [newMedication, setNewMedication] = useState('');
+
+  const handleAddAllergy = () => {
+    if (newAllergy.trim() && !allergies.includes(newAllergy.trim())) {
+      setAllergies([...allergies, newAllergy.trim()]);
+      setNewAllergy('');
+    }
+  };
+
+  const handleRemoveAllergy = (item) => {
+    setAllergies(allergies.filter(a => a !== item));
+  };
+
+  const handleAddMedication = () => {
+    if (newMedication.trim() && !medications.includes(newMedication.trim())) {
+      setMedications([...medications, newMedication.trim()]);
+      setNewMedication('');
+    }
+  };
+
+  const handleRemoveMedication = (item) => {
+    setMedications(medications.filter(m => m !== item));
+  };
+
+  const handleSave = async () => {
+    updateUser({ recipientProfile: { ...rp, allergies, medications } });
+    if (user?._id) {
+      try {
+        await updateUserProfileAPI(user._id, { recipientProfile: { ...rp, allergies, medications } });
+      } catch {}
+    }
+    setView('preferences');
+  };
+
+  return (
   <div className="animate-fade-in max-w-4xl mx-auto pb-20">
     <Breadcrumb current="Allergies & Medication" sub={{ name: 'Preferences', view: 'preferences' }} setView={setView} />
     <h2 className="text-4xl font-bold text-[#1a113b] mb-2 font-serif">Allergies & Medication</h2>
@@ -20,24 +62,34 @@ const PrefAllergies = ({ setView }) => (
           <h3 className="text-lg font-bold text-gray-900">Allergies</h3>
         </div>
         <div className="divide-y divide-gray-100">
-          <div className="p-6 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors">
-            <div className="flex items-center gap-3">
-              <div className="w-2 h-2 rounded-full bg-rose-500"></div>
-              <span className="text-sm font-medium text-gray-800">Peanuts</span>
+          {allergies.length === 0 && (
+            <div className="p-6 text-sm text-gray-400 text-center">No allergies listed</div>
+          )}
+          {allergies.map((item, i) => (
+            <div key={i} className="p-6 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors">
+              <div className="flex items-center gap-3">
+                <div className="w-2 h-2 rounded-full bg-rose-500"></div>
+                <span className="text-sm font-medium text-gray-800">{item}</span>
+              </div>
+              <button onClick={() => handleRemoveAllergy(item)} className="text-gray-300 hover:text-red-500 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
             </div>
-            <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"/></svg>
+          ))}
+          <div className="p-6 flex items-center gap-3">
+            <input
+              type="text"
+              value={newAllergy}
+              onChange={(e) => setNewAllergy(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAddAllergy()}
+              placeholder="Type allergy name and press Add"
+              className="flex-1 px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-200"
+            />
+            <button onClick={handleAddAllergy} disabled={!newAllergy.trim()} className="flex items-center gap-2 text-purple-600 hover:bg-purple-50 px-4 py-2 rounded-xl transition-colors disabled:opacity-50">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>
+              <span className="text-sm font-bold">Add</span>
+            </button>
           </div>
-          <div className="p-6 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors">
-            <div className="flex items-center gap-3">
-              <div className="w-2 h-2 rounded-full bg-rose-500"></div>
-              <span className="text-sm font-medium text-gray-800">Penicillin</span>
-            </div>
-            <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"/></svg>
-          </div>
-          <button className="w-full p-6 flex items-center gap-3 text-purple-600 hover:bg-gray-50 transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>
-            <span className="text-sm font-bold">Add Allergy</span>
-          </button>
         </div>
       </div>
 
@@ -46,24 +98,37 @@ const PrefAllergies = ({ setView }) => (
           <h3 className="text-lg font-bold text-gray-900">Medication</h3>
         </div>
         <div className="divide-y divide-gray-100">
-          <div className="p-6 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors">
-            <span className="text-sm font-medium text-gray-800">Lisinopril</span>
-            <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"/></svg>
+          {medications.length === 0 && (
+            <div className="p-6 text-sm text-gray-400 text-center">No medications listed</div>
+          )}
+          {medications.map((item, i) => (
+            <div key={i} className="p-6 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors">
+              <span className="text-sm font-medium text-gray-800">{item}</span>
+              <button onClick={() => handleRemoveMedication(item)} className="text-gray-300 hover:text-red-500 transition-colors">
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+          ))}
+          <div className="p-6 flex items-center gap-3">
+            <input
+              type="text"
+              value={newMedication}
+              onChange={(e) => setNewMedication(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleAddMedication()}
+              placeholder="Type medication name and press Add"
+              className="flex-1 px-4 py-2 bg-gray-50 border border-gray-200 rounded-xl text-sm outline-none focus:ring-2 focus:ring-purple-200"
+            />
+            <button onClick={handleAddMedication} disabled={!newMedication.trim()} className="flex items-center gap-2 text-purple-600 hover:bg-purple-50 px-4 py-2 rounded-xl transition-colors disabled:opacity-50">
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>
+              <span className="text-sm font-bold">Add</span>
+            </button>
           </div>
-          <div className="p-6 flex items-center justify-between cursor-pointer hover:bg-gray-50 transition-colors">
-            <span className="text-sm font-medium text-gray-800">Warfarin</span>
-            <svg className="w-5 h-5 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5l7 7-7 7"/></svg>
-          </div>
-          <button className="w-full p-6 flex items-center gap-3 text-purple-600 hover:bg-gray-50 transition-colors">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4v16m8-8H4"/></svg>
-            <span className="text-sm font-bold">Add Medication</span>
-          </button>
         </div>
       </div>
     </div>
 
-    <button onClick={() => setView('preferences')} className="w-full mt-8 py-5 bg-[#8b5cf6] hover:bg-[#7c3aed] text-white rounded-[2rem] font-bold text-base transition-colors">Save Changes</button>
+    <button onClick={handleSave} className="w-full mt-8 py-5 bg-[#8b5cf6] hover:bg-[#7c3aed] text-white rounded-[2rem] font-bold text-base transition-colors">Save Changes</button>
   </div>
-);
+)};
 
 export default PrefAllergies;

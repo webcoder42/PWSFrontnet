@@ -7,14 +7,19 @@
     "PWS"
   ],
   "scripts": {
-    "dev": "npm run dev --workspace=psw-plus",
-    "dev:all": "node run-all.js",
-    "dev:admin": "npm run dev --workspace=admin-dashboard-psw-plus",
-    "dev:client": "npm run dev --workspace=patient",
-    "dev:psw": "npm run dev --workspace=psw-plus",
+    "dev": "npm --prefix PWS run dev",
+    "dev:server": "npm --prefix ..\\server start",
+    "dev:all": "concurrently \"npm --prefix ..\\server start\" \"npm --prefix PWS run dev\"",
+    "build": "npm --prefix PWS run build",
+    "preview": "npm --prefix PWS run preview",
     "install:all": "npm install"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "@tanstack/query-sync-storage-persister": "^5.101.2",
+    "@tanstack/react-query": "^5.101.2",
+    "@tanstack/react-query-devtools": "^5.101.2"
   }
 }

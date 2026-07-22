@@ -1,10 +1,13 @@
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   fetchAdminClientsAPI,
   fetchAdminPswsAPI,
   fetchAdminAdminsAPI,
   fetchAdminAppointmentsAPI,
   fetchAdminStatsAPI,
+  fetchAdminOverviewAPI,
+  fetchAdminBillingAPI,
   createAdminAppointmentAPI,
 } from '../../utils/adminApi';
 import { readAuthToken } from '../../utils/sessionStorage';
@@ -27,73 +30,117 @@ const isToday = (appointment) => {
   );
 };
 
+const Q = {
+  clients: ['admin', 'clients'],
+  psws: ['admin', 'psws'],
+  admins: ['admin', 'admins'],
+  appointments: ['admin', 'appointments'],
+  stats: ['admin', 'stats'],
+  overview: ['admin', 'overview'],
+  invoices: ['admin', 'invoices'],
+};
+
 export const AdminProvider = ({ children, isAuthenticated = false }) => {
-  const [clients, setClients] = useState([]);
-  const [psws, setPsws] = useState([]);
-  const [admins, setAdmins] = useState([]);
-  const [appointments, setAppointments] = useState([]);
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const queryClient = useQueryClient();
+  const hasAuth = isAuthenticated || !!readAuthToken();
+  const opts = { enabled: hasAuth };
+
+  const clientsQuery = useQuery({
+    queryKey: Q.clients,
+    queryFn: () => fetchAdminClientsAPI().then(r => (r.data || []).map(c => ({ ...c, role: 'Client' }))),
+    ...opts,
+  });
+
+  const pswsQuery = useQuery({
+    queryKey: Q.psws,
+    queryFn: () => fetchAdminPswsAPI().then(r => (r.data || []).map(p => ({ ...p, role: 'PSW' }))),
+    ...opts,
+  });
+
+  const adminsQuery = useQuery({
+    queryKey: Q.admins,
+    queryFn: () => fetchAdminAdminsAPI().then(r => (r.data || []).map(a => ({ ...a, role: 'Admin' }))),
+    ...opts,
+  });
+
+  const appointmentsQuery = useQuery({
+    queryKey: Q.appointments,
+    queryFn: () => fetchAdminAppointmentsAPI().then(r => r.data || []),
+    ...opts,
+  });
+
+  const statsQuery = useQuery({
+    queryKey: Q.stats,
+    queryFn: () => fetchAdminStatsAPI().then(r => r.data || null),
+    ...opts,
+  });
+
+  const overviewQuery = useQuery({
+    queryKey: Q.overview,
+    queryFn: () => fetchAdminOverviewAPI().then(r => r.data || null),
+    ...opts,
+  });
+
+  const invoicesQuery = useQuery({
+    queryKey: Q.invoices,
+    queryFn: () => fetchAdminBillingAPI().then(r => r.data || []),
+    ...opts,
+  });
+
+  const clients = clientsQuery.data ?? [];
+  const psws = pswsQuery.data ?? [];
+  const admins = adminsQuery.data ?? [];
+  const appointments = appointmentsQuery.data ?? [];
+  const stats = statsQuery.data ?? null;
+  const overview = overviewQuery.data ?? null;
+  const invoices = invoicesQuery.data ?? [];
+
+  const loading = clientsQuery.isLoading || pswsQuery.isLoading || adminsQuery.isLoading ||
+    appointmentsQuery.isLoading || statsQuery.isLoading || overviewQuery.isLoading ||
+    invoicesQuery.isLoading;
+
+  const error = clientsQuery.error || pswsQuery.error || adminsQuery.error ||
+    appointmentsQuery.error || statsQuery.error || overviewQuery.error ||
+    invoicesQuery.error;
+
+  const refreshData = useCallback(() => {
+    Object.values(Q).forEach(key => queryClient.invalidateQueries({ queryKey: key }));
+  }, [queryClient]);
 
   const [complianceData, setComplianceData] = useState([]);
-  const [invoices, setInvoices] = useState([]);
   const [tickets, setTickets] = useState([]);
   const [courses, setCourses] = useState([]);
   const [notifications, setNotifications] = useState([]);
 
-  const refreshData = useCallback(async () => {
-    if (!readAuthToken()) return;
-
-    setLoading(true);
-    setError(null);
-    try {
-      const [clientsRes, pswsRes, adminsRes, appointmentsRes, statsRes] = await Promise.all([
-        fetchAdminClientsAPI(),
-        fetchAdminPswsAPI(),
-        fetchAdminAdminsAPI(),
-        fetchAdminAppointmentsAPI(),
-        fetchAdminStatsAPI(),
-      ]);
-
-      setClients((clientsRes.data || []).map((client) => ({ ...client, role: 'Client' })));
-      setPsws((pswsRes.data || []).map((psw) => ({ ...psw, role: 'PSW' })));
-      setAdmins((adminsRes.data || []).map((admin) => ({ ...admin, role: 'Admin' })));
-      setAppointments(appointmentsRes.data || []);
-      setStats(statsRes.data || null);
-    } catch (err) {
-      setError(err.message || 'Failed to load admin data');
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    const shouldFetch = isAuthenticated || !!readAuthToken();
-    if (shouldFetch) {
-      refreshData();
-    } else {
-      setClients([]);
-      setPsws([]);
-      setAppointments([]);
-      setStats(null);
-    }
-  }, [isAuthenticated, refreshData]);
+  const setInvoices = useCallback((updater) => {
+    queryClient.setQueryData(Q.invoices, (prev = []) =>
+      typeof updater === 'function' ? updater(prev) : updater,
+    );
+  }, [queryClient]);
 
   const addClient = (client) => {
-    setClients([...clients, { ...client, id: Date.now(), sessions: 0, seed: client.name?.split(' ')[0] }]);
+    queryClient.setQueryData(Q.clients, (prev = []) => [
+      ...prev,
+      { ...client, id: Date.now(), sessions: 0, seed: client.name?.split(' ')[0] },
+    ]);
   };
 
-  const deleteClient = (id) => setClients(clients.filter((c) => c.id !== id));
+  const deleteClient = (id) => {
+    queryClient.setQueryData(Q.clients, (prev = []) =>
+      prev.filter((c) => c.id !== id && c._id !== id),
+    );
+  };
 
   const onboardPsw = (psw) => {
-    setPsws([...psws, { ...psw, id: Date.now(), status: 'Available', rating: 5.0, seed: psw.name?.split(' ')[0] }]);
+    queryClient.setQueryData(Q.psws, (prev = []) => [
+      ...prev,
+      { ...psw, id: Date.now(), status: 'Available', rating: 5.0, seed: psw.name?.split(' ')[0] },
+    ]);
   };
 
   const addAppointment = async (app) => {
-    const client = clients.find((c) => c.name === app.client || c.id === app.clientId);
-    const psw = psws.find((p) => p.name === app.psw || p.id === app.pswId);
+    const client = clients.find((c) => c.name === app.client || c.id === app.clientId || c._id === app.clientId);
+    const psw = psws.find((p) => p.name === app.psw || p.id === app.pswId || p._id === app.pswId);
 
     if (client?._id && psw?._id) {
       try {
@@ -107,26 +154,29 @@ export const AdminProvider = ({ children, isAuthenticated = false }) => {
           price: app.price ?? 0,
           location: app.location || 'Client home',
         });
-        await refreshData();
+        queryClient.invalidateQueries({ queryKey: Q.appointments });
         return;
       } catch (err) {
         console.error('Failed to create appointment:', err);
       }
     }
 
-    setAppointments([...appointments, { ...app, id: Date.now() }]);
+    queryClient.setQueryData(Q.appointments, (prev = []) => [...prev, { ...app, id: Date.now() }]);
   };
 
   const updateUser = (userId, updates) => {
-    setClients((prev) => prev.map((user) => (user.id === userId ? { ...user, ...updates } : user)));
-    setPsws((prev) => prev.map((user) => (user.id === userId ? { ...user, ...updates } : user)));
-    setAdmins((prev) => prev.map((user) => (user.id === userId ? { ...user, ...updates } : user)));
+    const update = (prev = []) => prev.map((user) =>
+      (user.id === userId || user._id === userId) ? { ...user, ...updates } : user,
+    );
+    queryClient.setQueryData(Q.clients, update);
+    queryClient.setQueryData(Q.psws, update);
+    queryClient.setQueryData(Q.admins, update);
   };
 
-  const resolveTicket = (id) => setTickets(tickets.map((t) => (t.id === id ? { ...t, status: 'Resolved' } : t)));
-  const addCourse = (course) => setCourses([...courses, { ...course, id: Date.now(), progress: 0 }]);
-  const updateCourse = (id, updated) => setCourses(courses.map((c) => (c.id === id ? { ...c, ...updated } : c)));
-  const addNotification = (notif) => setNotifications([...notifications, { ...notif, id: Date.now() }]);
+  const resolveTicket = (id) => setTickets((prev) => prev.map((t) => t.id === id ? { ...t, status: 'Resolved' } : t));
+  const addCourse = (course) => setCourses((prev) => [...prev, { ...course, id: Date.now(), progress: 0 }]);
+  const updateCourse = (id, updated) => setCourses((prev) => prev.map((c) => c.id === id ? { ...c, ...updated } : c));
+  const addNotification = (notif) => setNotifications((prev) => [...prev, { ...notif, id: Date.now() }]);
 
   const dashboardStats = stats
     ? [
@@ -141,7 +191,7 @@ export const AdminProvider = ({ children, isAuthenticated = false }) => {
       ];
 
   const value = {
-    clients, psws, admins, appointments, stats, dashboardStats,
+    clients, psws, admins, appointments, stats, overview, dashboardStats,
     complianceData, invoices, tickets, courses, notifications,
     loading, error, refreshData,
     addClient, deleteClient, onboardPsw, addAppointment,

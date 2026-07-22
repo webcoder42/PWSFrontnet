@@ -19,10 +19,10 @@ const CTA = () => {
 
             <div className="flex flex-col sm:flex-row justify-center items-center gap-4 mb-10">
               <button className="w-full sm:w-auto btn-gradient-pink text-white px-10 py-4 rounded-full font-medium text-lg">
-                Find A PSW
+                Find A PSW Now
               </button>
               <button className="w-full sm:w-auto px-10 py-4 rounded-full font-medium text-lg border-2 border-white text-white hover:bg-white hover:text-primary duration-300">
-                Become A PSW
+                Start Earning Now
               </button>
             </div>
 

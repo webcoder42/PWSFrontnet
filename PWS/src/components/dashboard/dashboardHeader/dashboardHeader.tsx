@@ -261,7 +261,13 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({ onMenuClick }) => {
             <div className="flex items-center gap-3 lg:gap-8">
               <div className="relative" ref={notificationRef}>
                 <button
-                  onClick={() => setShowNotifications(!showNotifications)}
+                  onClick={() => {
+                    const nextState = !showNotifications;
+                    setShowNotifications(nextState);
+                    if (nextState) {
+                      markAllRead();
+                    }
+                  }}
                   className={clsx(
                     "size-10 lg:size-12 flex items-center justify-center relative rounded-2xl border border-gray-100 bg-white shadow-sm transition duration-300",
                     showNotifications ? "text-primary border-primary/20 shadow-md" : "text-gray-400 hover:text-primary hover:border-gray-200"

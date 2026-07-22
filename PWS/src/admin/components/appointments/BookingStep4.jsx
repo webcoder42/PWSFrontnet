@@ -1,6 +1,23 @@
 import React from 'react';
 
-const BookingStep4 = ({ onBackToDashboard, onReschedule }) => (
+const BookingStep4 = ({ onBackToDashboard, onReschedule, assignment }) => {
+  const pswName = assignment?.psw || 'Assigned PSW';
+  const clientName = assignment?.client || 'Client';
+  const serviceType = assignment?.type || 'Care Session';
+  const dateStr = assignment?.date || 'TBD';
+  const timeStr = assignment?.time || 'TBD';
+  const loc = assignment?.location || 'TBD';
+  const duration = assignment?.duration || 'TBD';
+  const price = assignment?.price ?? 0;
+  const initials = pswName.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() || 'PSW';
+
+  const formatDisplayDate = (d) => {
+    try {
+      return new Date(d + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
+    } catch { return d; }
+  };
+
+  return (
   <div className="animate-in fade-in zoom-in-95 duration-700">
     <div className="mb-8">
       <h2 className="text-3xl font-bold text-gray-900 mb-2">Assignment Confirmed</h2>
@@ -17,17 +34,10 @@ const BookingStep4 = ({ onBackToDashboard, onReschedule }) => (
            
            <div className="p-8">
               <div className="bg-gray-50/50 p-6 rounded-3xl flex items-center mb-10 border border-gray-50">
-                <div className="w-16 h-16 bg-purple-600 rounded-2xl flex items-center justify-center text-white text-2xl font-bold mr-6 shadow-lg shadow-purple-100">SJ</div>
+                <div className="w-16 h-16 bg-purple-600 rounded-2xl flex items-center justify-center text-white text-2xl font-bold mr-6 shadow-lg shadow-purple-100">{initials}</div>
                 <div className="flex-1">
                   <p className="text-[10px] text-gray-400 font-bold tracking-widest uppercase mb-1">Assigned PSW</p>
-                  <h4 className="text-xl font-bold">Sarah Johnson</h4>
-                </div>
-                <div className="text-right">
-                   <div className="flex items-center justify-end">
-                     <span className="text-orange-400 mr-1">★</span>
-                     <span className="text-sm font-bold">4.9</span>
-                   </div>
-                   <p className="text-[10px] text-gray-400 font-medium">124 Reviews</p>
+                  <h4 className="text-xl font-bold">{pswName}</h4>
                 </div>
               </div>
 
@@ -38,7 +48,7 @@ const BookingStep4 = ({ onBackToDashboard, onReschedule }) => (
                     </div>
                     <div>
                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Date</p>
-                       <p className="text-sm font-bold text-gray-900">March 16, 2026</p>
+                       <p className="text-sm font-bold text-gray-900">{formatDisplayDate(dateStr)}</p>
                     </div>
                  </div>
                  <div className="flex items-start">
@@ -47,7 +57,7 @@ const BookingStep4 = ({ onBackToDashboard, onReschedule }) => (
                     </div>
                     <div>
                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Time</p>
-                       <p className="text-sm font-bold text-gray-900">11:00 AM - 12:00 PM</p>
+                       <p className="text-sm font-bold text-gray-900">{timeStr}</p>
                     </div>
                  </div>
                  <div className="flex items-start">
@@ -56,7 +66,7 @@ const BookingStep4 = ({ onBackToDashboard, onReschedule }) => (
                     </div>
                     <div>
                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Service</p>
-                       <p className="text-sm font-bold text-gray-900">Personal Care</p>
+                       <p className="text-sm font-bold text-gray-900">{serviceType}</p>
                     </div>
                  </div>
                  <div className="flex items-start">
@@ -65,7 +75,7 @@ const BookingStep4 = ({ onBackToDashboard, onReschedule }) => (
                     </div>
                     <div>
                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Client Location</p>
-                       <p className="text-sm font-bold text-gray-900">123 Queen St.</p>
+                       <p className="text-sm font-bold text-gray-900">{loc}</p>
                     </div>
                  </div>
                  <div className="flex items-start">
@@ -74,7 +84,7 @@ const BookingStep4 = ({ onBackToDashboard, onReschedule }) => (
                     </div>
                     <div>
                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Duration</p>
-                       <p className="text-sm font-bold text-gray-900">1 hour</p>
+                       <p className="text-sm font-bold text-gray-900">{duration}</p>
                     </div>
                  </div>
                  <div className="flex items-start">
@@ -83,7 +93,7 @@ const BookingStep4 = ({ onBackToDashboard, onReschedule }) => (
                     </div>
                     <div>
                        <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest mb-1">Amount</p>
-                       <p className="text-sm font-bold text-gray-900">$30.80</p>
+                       <p className="text-sm font-bold text-gray-900">${Number(price).toFixed(2)}</p>
                     </div>
                  </div>
               </div>
@@ -96,9 +106,9 @@ const BookingStep4 = ({ onBackToDashboard, onReschedule }) => (
                  </h4>
                  <div className="space-y-6">
                     {[
-                       { id: 1, text: 'Sarah will receive the assignment details and client care notes.' },
+                       { id: 1, text: `${pswName.split(' ')[0] || 'The PSW'} will receive the assignment details and client care notes.` },
                        { id: 2, text: 'Both PSW and client will receive reminder notifications 24 hours before.' },
-                       { id: 3, text: 'Sarah will check-in through the app upon arrival to begin the session.' }
+                       { id: 3, text: `${pswName.split(' ')[0] || 'The PSW'} will check-in through the app upon arrival to begin the session.` }
                     ].map(step => (
                        <div key={step.id} className="flex ml-8">
                          <span className="text-purple-600 font-bold mr-4 text-xs shrink-0">{step.id}</span>
@@ -117,7 +127,7 @@ const BookingStep4 = ({ onBackToDashboard, onReschedule }) => (
            <div className="space-y-4">
               <button className="w-full flex items-center justify-center space-x-3 p-4 bg-purple-50 text-purple-600 rounded-2xl font-bold text-xs ring-1 ring-purple-100 hover:bg-purple-100 transition-colors">
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"/></svg>
-                <span>Message Sarah</span>
+                <span>Message {pswName.split(' ')[0]}</span>
               </button>
               <button onClick={onReschedule} className="w-full flex items-center justify-between p-4 bg-gray-50 border border-gray-100 rounded-2xl text-xs font-bold text-gray-700 hover:bg-gray-100 transition-colors">
                 <div className="flex items-center space-x-3">
@@ -169,6 +179,7 @@ const BookingStep4 = ({ onBackToDashboard, onReschedule }) => (
        </button>
     </div>
   </div>
-);
+  );
+};
 
 export default BookingStep4;

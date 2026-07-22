@@ -11,7 +11,25 @@ const parseApiResponse = async (response: Response) => {
   return data;
 };
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://api.mypswplus.com/api';
+const cleanUrl = rawBaseUrl.replace(/\/+$/, '');
+const API_BASE_URL = cleanUrl.endsWith('/api') ? cleanUrl : `${cleanUrl}/api`;
+const REQUEST_TIMEOUT_MS = 15_000;
+
+const fetchWithTimeout = async (url: string, init?: RequestInit): Promise<Response> => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } catch (err: unknown) {
+    if ((err instanceof Error && err.name === 'AbortError') || (err as any)?.name === 'AbortError') {
+      throw new Error('Request timed out. Unable to reach the server. Please check your connection.');
+    }
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+};
 
 const getAuthToken = (): string | null => readAuthToken();
 
@@ -44,7 +62,10 @@ export const registerUserAPI = async (payload: any) => {
 
   const data = await response.json();
   if (!response.ok) {
-    throw new Error(data.message || 'Registration failed');
+    const msg = data.error?.includes?.('validation failed')
+      ? data.error
+      : data.message || 'Registration failed';
+    throw new Error(msg);
   }
   return data;
 };
@@ -109,7 +130,7 @@ export const verifyLinkedAccountAPI = async (payload: { email: string; password:
 };
 
 export const loginUserAPI = async (payload: any) => {
-  const response = await fetch(`${API_BASE_URL}/auth/login`, {
+  const response = await fetchWithTimeout(`${API_BASE_URL}/auth/login`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -120,6 +141,125 @@ export const loginUserAPI = async (payload: any) => {
   const data = await response.json();
   if (!response.ok) {
     throw new Error(data.message || 'Login failed');
+  }
+
+  if (data.requiresEmailVerification) {
+    const error = new Error(data.message || 'Please verify your email first') as any;
+    error.requiresEmailVerification = true;
+    error.email = data.email;
+    throw error;
+  }
+
+  if (data.requiresLoginVerification) {
+    const error = new Error(data.message || 'Verification code sent to your email') as any;
+    error.requiresLoginVerification = true;
+    error.email = data.email;
+    throw error;
+  }
+
+  return data;
+};
+
+export const sendVerificationCodeAPI = async (email: string) => {
+  const response = await fetch(`${API_BASE_URL}/auth/send-verification-code`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || 'Failed to send verification code');
+  }
+  return data;
+};
+
+export const verifyEmailCodeAPI = async (email: string, code: string) => {
+  const response = await fetch(`${API_BASE_URL}/auth/verify-email`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, code }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || 'Email verification failed');
+  }
+  return data;
+};
+
+export const resendVerificationCodeAPI = async (email: string) => {
+  const response = await fetch(`${API_BASE_URL}/auth/resend-verification-code`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || 'Failed to resend verification code');
+  }
+  return data;
+};
+
+export const sendPhoneCodeAPI = async (phone: string) => {
+  const response = await fetch(`${API_BASE_URL}/auth/send-phone-code`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || 'Failed to send verification code');
+  }
+  return data;
+};
+
+export const verifyPhoneCodeAPI = async (phone: string, code: string) => {
+  const response = await fetch(`${API_BASE_URL}/auth/verify-phone-code`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone, code }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || 'Phone verification failed');
+  }
+  return data;
+};
+
+export const resendPhoneCodeAPI = async (phone: string) => {
+  const response = await fetch(`${API_BASE_URL}/auth/resend-phone-code`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ phone }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || 'Failed to resend verification code');
+  }
+  return data;
+};
+
+export const verifyLoginCodeAPI = async (email: string, code: string, deviceId?: string) => {
+  const response = await fetch(`${API_BASE_URL}/auth/verify-login-code`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, code, deviceId }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || 'Login verification failed');
+  }
+  return data;
+};
+
+export const verifyLoginTwoFactorAPI = async (email: string, code: string, deviceId?: string) => {
+  const response = await fetch(`${API_BASE_URL}/auth/verify-login-two-factor`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, code, deviceId, trustDevice: true }),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || 'Authenticator verification failed');
   }
   return data;
 };
@@ -156,6 +296,74 @@ export const updateUserProfileAPI = async (userId: string, payload: any) => {
   const data = await response.json();
   if (!response.ok) {
     throw new Error(data.message || 'Profile update failed');
+  }
+  return data;
+};
+
+export const changePasswordAPI = async (userId: string, payload: { oldPassword: string; newPassword: string }) => {
+  const response = await fetch(`${API_BASE_URL}/auth/change-password/${userId}`, {
+    method: 'PUT',
+    headers: buildJsonHeaders(getAuthHeaders()),
+    body: JSON.stringify(payload),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || 'Failed to change password');
+  }
+  return data;
+};
+
+export const getTwoFactorAuthStatusAPI = async (userId: string) => {
+  const response = await fetch(`${API_BASE_URL}/auth/two-factor/${userId}`, {
+    method: 'GET',
+    headers: buildJsonHeaders(getAuthHeaders()),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || 'Failed to load two-factor status');
+  }
+  return data;
+};
+
+export const setupTwoFactorAuthAPI = async (userId: string) => {
+  const response = await fetch(`${API_BASE_URL}/auth/two-factor/setup/${userId}`, {
+    method: 'POST',
+    headers: buildJsonHeaders(getAuthHeaders()),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || 'Failed to start authenticator setup');
+  }
+  return data;
+};
+
+export const verifyTwoFactorAuthAPI = async (userId: string, code: string) => {
+  const response = await fetch(`${API_BASE_URL}/auth/two-factor/verify/${userId}`, {
+    method: 'POST',
+    headers: buildJsonHeaders(getAuthHeaders()),
+    body: JSON.stringify({ code }),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || 'Failed to verify authenticator code');
+  }
+  return data;
+};
+
+export const disableTwoFactorAuthAPI = async (userId: string, code: string) => {
+  const response = await fetch(`${API_BASE_URL}/auth/two-factor/disable/${userId}`, {
+    method: 'POST',
+    headers: buildJsonHeaders(getAuthHeaders()),
+    body: JSON.stringify({ code }),
+  });
+
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.message || 'Failed to disable authenticator');
   }
   return data;
 };
@@ -226,11 +434,20 @@ export const getUserPhysicalStatsAPI = async (userId: string) => {
   return data;
 };
 
-export const getCareProvidersAPI = async (serviceName?: string | null) => {
-  const query = serviceName ? `?service=${encodeURIComponent(serviceName)}` : '';
-  const response = await fetch(`${API_BASE_URL}/auth/providers${query}`, {
+export const getCareProvidersAPI = async (
+  serviceName?: string | null,
+  location?: { lat?: number; lng?: number; radiusKm?: number },
+) => {
+  const params = new URLSearchParams();
+  if (serviceName) params.set('service', serviceName);
+  if (location?.lat != null) params.set('lat', String(location.lat));
+  if (location?.lng != null) params.set('lng', String(location.lng));
+  if (location?.radiusKm != null) params.set('radiusKm', String(location.radiusKm));
+  const queryStr = params.toString();
+  const url = `${API_BASE_URL}/auth/providers${queryStr ? `?${queryStr}` : ''}`;
+  const response = await fetch(url, {
     method: 'GET',
-    headers: buildJsonHeaders(),
+    headers: buildJsonHeaders(getAuthHeaders()),
   });
 
   const data = await response.json();
@@ -506,5 +723,71 @@ export const fetchAdminStatsAPI = async () => {
     headers: buildJsonHeaders(getAuthHeaders()),
   });
   return parseApiResponse(response);
+};
+
+export const forgotPasswordAPI = async (email: string) => {
+  const response = await fetch(`${API_BASE_URL}/auth/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message || 'Failed to send reset email');
+  return data;
+};
+
+export const resetPasswordAPI = async (email: string, token: string, password: string) => {
+  const response = await fetch(`${API_BASE_URL}/auth/reset-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, token, password }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message || 'Failed to reset password');
+  return data;
+};
+
+export const startTwoFactorRecoveryAPI = async (email: string) => {
+  const response = await fetch(`${API_BASE_URL}/auth/two-factor/recovery-start`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message || 'Failed to start recovery');
+  return data;
+};
+
+export const completeTwoFactorRecoveryAPI = async (email: string, code: string) => {
+  const response = await fetch(`${API_BASE_URL}/auth/two-factor/recovery-complete`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, code }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message || 'Failed to complete recovery');
+  return data;
+};
+
+export const sendRecoveryEmailCodeAPI = async (email: string) => {
+  const response = await fetch(`${API_BASE_URL}/auth/two-factor/recovery-send-email-code`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message || 'Failed to send recovery email code');
+  return data;
+};
+
+export const verifyRecoveryEmailCodeAPI = async (email: string, code: string) => {
+  const response = await fetch(`${API_BASE_URL}/auth/two-factor/recovery-verify-email-code`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, code }),
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data.message || 'Failed to verify recovery email code');
+  return data;
 };
 

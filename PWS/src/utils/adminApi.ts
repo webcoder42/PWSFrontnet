@@ -1,6 +1,8 @@
 import { readAuthToken } from './sessionStorage';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://api.mypswplus.com/api';
+const cleanUrl = rawBaseUrl.replace(/\/+$/, '');
+const API_BASE_URL = cleanUrl.endsWith('/api') ? cleanUrl : `${cleanUrl}/api`;
 
 const parseResponse = async (response: Response) => {
   const data = await response.json();
@@ -50,6 +52,13 @@ export const fetchAdminStatsAPI = async () => {
   return parseResponse(response);
 };
 
+export const fetchAdminOverviewAPI = async () => {
+  const response = await fetch(`${API_BASE_URL}/admin/overview`, {
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+  });
+  return parseResponse(response);
+};
+
 export const fetchAdminConversationsAPI = async () => {
   const response = await fetch(`${API_BASE_URL}/admin/conversations`, {
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -64,9 +73,56 @@ export const fetchAdminConversationByKeyAPI = async (conversationKey: string) =>
   return parseResponse(response);
 };
 
+export const fetchAdminExportReportAPI = async (reportKey: string, month?: string) => {
+  const query = month ? `?month=${encodeURIComponent(month)}` : '';
+  const response = await fetch(`${API_BASE_URL}/admin/export/${encodeURIComponent(reportKey)}${query}`, {
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+  });
+  return parseResponse(response);
+};
+
+export const fetchAdminBillingAPI = async () => {
+  const response = await fetch(`${API_BASE_URL}/admin/billing`, {
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+  });
+  return parseResponse(response);
+};
+
 export const createAdminAppointmentAPI = async (payload: Record<string, unknown>) => {
   const response = await fetch(`${API_BASE_URL}/appointments`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(payload),
+  });
+  return parseResponse(response);
+};
+
+export const fetchAdminPswByIdAPI = async (id: string) => {
+  const response = await fetch(`${API_BASE_URL}/admin/psws/${encodeURIComponent(id)}`, {
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+  });
+  return parseResponse(response);
+};
+
+export const fetchAdminBroadcastsAPI = async () => {
+  const response = await fetch(`${API_BASE_URL}/admin/broadcasts`, {
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+  });
+  return parseResponse(response);
+};
+
+export const sendAdminBroadcastAPI = async (payload: { target: string; subject: string; message: string }) => {
+  const response = await fetch(`${API_BASE_URL}/admin/broadcast`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+    body: JSON.stringify(payload),
+  });
+  return parseResponse(response);
+};
+
+export const verifyAdminPswAPI = async (id: string, payload: { certificateStatus?: string; backgroundCheckStatus?: string; certificateId?: string; backgroundCheckId?: string }) => {
+  const response = await fetch(`${API_BASE_URL}/admin/psws/${encodeURIComponent(id)}/verify`, {
+    method: 'PATCH',
     headers: { 'Content-Type': 'application/json', ...authHeaders() },
     body: JSON.stringify(payload),
   });

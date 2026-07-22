@@ -10,9 +10,9 @@ interface AppointmentItemProps {
   isToday?: boolean;
 }
 
-const AppointmentItem: React.FC<AppointmentItemProps> = ({ name, location, image, time, status, isToday }) => {
+const AppointmentItem: React.FC<AppointmentItemProps> = ({ name, location, image, time, status, isToday, onClick }) => {
   return (
-    <div className="py-4 sm:py-6 border-b border-border-soft last:border-0 duration-300 group px-2">
+    <div onClick={onClick} className="py-4 sm:py-6 border-b border-border-soft last:border-0 duration-300 group px-2 cursor-pointer">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 sm:gap-6">
         <div className="flex items-center gap-4 sm:gap-5 min-w-0">
           <div className="size-14 sm:size-16 rounded-full overflow-hidden border-2 border-primary/5 shadow-sm shrink-0">
@@ -46,3 +46,4 @@ const AppointmentItem: React.FC<AppointmentItemProps> = ({ name, location, image
 };
 
 export default AppointmentItem;
+

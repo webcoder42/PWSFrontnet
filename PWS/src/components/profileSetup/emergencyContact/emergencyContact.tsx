@@ -1,15 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { clsx } from 'clsx';
 import { HiChevronDown, HiPlus } from 'react-icons/hi';
 import type { ProfileFormData, EmergencyContact as IEmergencyContact } from '../../../types/profile';
-const CountriesData = [
-  { code: '+1', name: 'Canada', flag: '🇨🇦' },
-  { code: '+1', name: 'United States', flag: '🇺🇸' },
-  { code: '+44', name: 'United Kingdom', flag: '🇬🇧' },
-  { code: '+61', name: 'Australia', flag: '🇦🇺' },
-  { code: '+91', name: 'India', flag: '🇮🇳' },
-];
+import PhoneInput from '../../PhoneInput';
 
 interface EmergencyContactProps {
   formData: ProfileFormData;
@@ -18,19 +12,6 @@ interface EmergencyContactProps {
 }
 
 const EmergencyContact: React.FC<EmergencyContactProps> = ({ formData, setFormData, isFamilyMember }) => {
-  const [isEmergencyCountryOpen, setIsEmergencyCountryOpen] = useState(false);
-  const emergencyCountryRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (emergencyCountryRef.current && !emergencyCountryRef.current.contains(event.target as Node)) {
-        setIsEmergencyCountryOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
   return (
     <div className="space-y-10">
       <div className="space-y-4">
@@ -71,41 +52,12 @@ const EmergencyContact: React.FC<EmergencyContactProps> = ({ formData, setFormDa
 
         <div className="space-y-2">
           <label className="text-xs sm:text-sm font-dm font-bold text-gray-900 uppercase tracking-widest ml-1 opacity-60">Phone number</label>
-          <div className="mt-2 flex gap-4 relative">
-            <div className="relative shrink-0" ref={emergencyCountryRef}>
-              <div
-                onClick={() => setIsEmergencyCountryOpen(!isEmergencyCountryOpen)}
-                className="w-24 sm:w-32 h-full bg-white border-2 border-primary/10 rounded-xl md:rounded-2xl flex items-center justify-between px-4 sm:px-5 cursor-pointer hover:border-primary/30 duration-300"
-              >
-                <span className="text-sm sm:text-base">{CountriesData.find(c => c.code === formData.emergencyCountryCode)?.flag || '🇨🇦'} {formData.emergencyCountryCode}</span>
-                <HiChevronDown className={`text-gray-400 duration-300 ${isEmergencyCountryOpen ? 'rotate-180' : ''}`} />
-              </div>
-
-              {isEmergencyCountryOpen && (
-                <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-gray-100 rounded-xl shadow-logs overflow-hidden z-20 animate-in fade-in slide-in-from-top-2 py-2">
-                  {CountriesData.map((country) => (
-                    <button
-                      key={country.name}
-                      onClick={() => {
-                        setFormData({ ...formData, emergencyCountryCode: country.code });
-                        setIsEmergencyCountryOpen(false);
-                      }}
-                      className="w-full px-4 py-3 text-left hover:bg-gray-50 flex items-center gap-3 duration-200"
-                    >
-                      <span>{country.flag}</span>
-                      <span className="text-sm font-medium text-gray-700">{country.name}</span>
-                      <span className="text-sm text-gray-400 ml-auto">{country.code}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-            <input
-              type="tel"
-              placeholder="123-456-7890"
+          <div className="mt-2">
+            <PhoneInput
               value={formData.emergencyPhone}
-              onChange={(e) => setFormData({ ...formData, emergencyPhone: e.target.value })}
-              className="w-full bg-white border-2 border-primary/10 rounded-xl md:rounded-2xl p-4 sm:p-5 outline-none focus:border-primary duration-300 text-gray-900 font-medium placeholder:text-gray-400 text-sm sm:text-base shadow-sm"
+              onChange={(phone) => setFormData({ ...formData, emergencyPhone: phone })}
+              countryCode={formData.emergencyCountryCode}
+              onCountryCodeChange={(code) => setFormData({ ...formData, emergencyCountryCode: code })}
             />
           </div>
         </div>

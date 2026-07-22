@@ -8,9 +8,11 @@ interface SetupFooterProps {
   handleBack: () => void;
   handleContinue: () => void;
   errors: any;
+  phoneVerified?: boolean;
+  phoneStep?: number;
 }
 
-const SetupFooter: React.FC<SetupFooterProps> = ({ currentStep, totalSteps = 10, handleBack, handleContinue, errors }) => {
+const SetupFooter: React.FC<SetupFooterProps> = ({ currentStep, totalSteps = 10, handleBack, handleContinue, errors, phoneVerified, phoneStep }) => {
   return (
     <footer className={clsx(
       'bg-white border-t border-gray-100 sticky bottom-0 z-30',

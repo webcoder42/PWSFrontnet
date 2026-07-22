@@ -2,7 +2,7 @@ import { useState } from 'react';
 import type { Dispatch, SetStateAction, ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { ProfileFormData, ProfileErrors } from '../types/profile';
-import { registerUserAPI, uploadImageAPI } from '../utils/api';
+import { registerUserAPI } from '../utils/api';
 import { encryptData } from '../utils/security';
 
 interface UseProfileStateReturn {
@@ -145,17 +145,13 @@ export const useFamilyProfileState = (): UseProfileStateReturn => {
 
         const firstName = formData.firstName.trim() || 'Test';
         const lastName = formData.lastName.trim() || 'User';
-        const phone = formData.phone.trim() ? `${formData.countryCode}${formData.phone.replace(/\D/g, '')}` : `${formData.countryCode}5550199`;
+        const phone = formData.phone.trim() ? `${formData.countryCode}${formData.phone.replace(/\D/g, '')}` : '';
         const street = formData.streetAddress.trim() || '123 Care Street';
         const postalCode = formData.postalCode.trim() || 'M5V 2T6';
         const city = formData.city.trim() || 'Toronto';
         const province = formData.province.trim() || 'ON';
 
         let photoUrl = formData.profilePhoto || undefined;
-        if (typeof photoUrl === 'string' && photoUrl.startsWith('data:image')) {
-          const uploadRes = await uploadImageAPI(photoUrl, 'mypsw/profile-images');
-          photoUrl = uploadRes?.data?.secureUrl || undefined;
-        }
 
         const payload = {
           email,
@@ -175,7 +171,13 @@ export const useFamilyProfileState = (): UseProfileStateReturn => {
             street,
             postalCode,
             city,
-            province
+            province,
+            ...(formData.latitude && formData.longitude ? {
+              geojson: {
+                type: 'Point' as const,
+                coordinates: [formData.longitude, formData.latitude]
+              }
+            } : {})
           },
           dateOfBirth,
           gender: formData.gender,
@@ -208,20 +210,14 @@ export const useFamilyProfileState = (): UseProfileStateReturn => {
 
         const res = await registerUserAPI(payload);
 
-        // Store user session so the user is authenticated immediately
-        if (res && res.data) {
-          localStorage.setItem('user_session', encryptData({
-            ...(res.data as Record<string, unknown>),
-            token: res.token,
-          }));
-        }
+        const userEmail = payload.email || sessionStorage.getItem('signup_email') || '';
 
         sessionStorage.removeItem('signup_email');
         sessionStorage.removeItem('signup_password');
         sessionStorage.removeItem('signup_role');
         sessionStorage.removeItem('signup_care_type');
 
-        navigate('/setup-complete');
+        navigate(`/verify-email?email=${encodeURIComponent(userEmail)}`);
       } catch (err: any) {
         console.error(err);
         alert(err.message || 'Registration failed. Please check details and try again.');

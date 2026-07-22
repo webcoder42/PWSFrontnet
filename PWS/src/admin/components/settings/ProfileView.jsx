@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import PhoneInput from '../../../components/PhoneInput';
 import Breadcrumb from './Breadcrumb';
 import { useUser } from '../../../context/UserContext';
 import { fileToBase64 } from '../../../utils/image';
@@ -12,7 +13,8 @@ const ProfileView = ({ setView }) => {
   const [form, setForm] = useState(() => ({
     firstName: rawUser?.firstName || '',
     lastName: rawUser?.lastName || '',
-    phone: rawUser?.phone || '',
+    phone: (rawUser?.phone || '').replace(/^\+\d+/, ''),
+    countryCode: '+1',
     street: rawUser?.address?.street || '',
     city: rawUser?.address?.city || '',
     province: rawUser?.address?.province || '',
@@ -69,10 +71,11 @@ const ProfileView = ({ setView }) => {
 
     try {
       setIsSaving(true);
+      const phoneFull = `${form.countryCode}${form.phone.replace(/\D/g, '')}`;
       const payload = {
         firstName: form.firstName,
         lastName: form.lastName,
-        phone: form.phone,
+        phone: phoneFull,
         photoUrl: form.photoUrl,
         address: {
           street: form.street,
@@ -164,7 +167,15 @@ const ProfileView = ({ setView }) => {
                 </div>
                 <div className="space-y-2 md:col-span-2">
                   <label className="text-[8px] font-bold text-gray-500 uppercase tracking-widest ml-1">Phone Number</label>
-                  <input type="text" value={form.phone} onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))} className="w-full px-6 py-4 bg-gray-50 border border-transparent rounded-2xl text-sm font-medium focus:bg-white focus:border-purple-100 transition-all outline-none" />
+                  <PhoneInput
+                    value={form.phone}
+                    onChange={(val) => setForm((prev) => ({ ...prev, phone: val }))}
+                    countryCode={form.countryCode}
+                    onCountryCodeChange={(val) => setForm((prev) => ({ ...prev, countryCode: val }))}
+                    placeholder="123-456-7890"
+                    countryBtnClass="flex items-center gap-2 bg-gray-50 border border-transparent rounded-2xl px-4 py-4 cursor-pointer hover:border-purple-100 duration-300 shadow-sm text-sm"
+                    inputClass="w-full flex-1 bg-gray-50 border border-transparent rounded-2xl px-6 py-4 text-sm font-medium focus:bg-white focus:border-purple-100 transition-all outline-none"
+                  />
                 </div>
               </div>
             </div>

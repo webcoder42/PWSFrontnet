@@ -54,7 +54,11 @@ function getString(value: unknown): string {
 }
 
 function getUserName(user: SessionUser): string {
-  const direct = getString(user.name) || getString(user.fullName) || getString(user.displayName);
+  const direct =
+    getString(user.name) ||
+    getString(user.fullName) ||
+    getString(user.displayName) ||
+    getString(user.username);
   if (direct) {
     return direct;
   }
@@ -79,17 +83,18 @@ function mapToProfile(user: SessionUser | null): UserProfile | null {
   if (!user) {
     return null;
   }
-  const name = getUserName(user);
+  const actualUser = (user.user && typeof user.user === 'object' ? user.user : user) as SessionUser;
+  const name = getUserName(actualUser);
   return {
-    id: getString(user._id) || getString(user.id),
+    id: getString(actualUser._id) || getString(actualUser.id),
     name,
-    email: getString(user.email),
-    role: getString(user.role),
+    email: getString(actualUser.email),
+    role: getString(actualUser.role),
     photoUrl:
-      getString(user.photoUrl) ||
-      getString(user.profilePhoto) ||
-      getString(user.avatar) ||
-      getString(user.image),
+      getString(actualUser.photoUrl) ||
+      getString(actualUser.profilePhoto) ||
+      getString(actualUser.avatar) ||
+      getString(actualUser.image),
     initials: getInitials(name),
   };
 }
@@ -99,17 +104,24 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const [isHydrated, setIsHydrated] = useState(false);
 
   const refreshFromServer = useCallback(async (sourceUser: SessionUser | null) => {
+    const actualUser = (sourceUser?.user && typeof sourceUser.user === 'object' ? sourceUser.user : sourceUser) as SessionUser | null;
     const userId =
-      (typeof sourceUser?._id === 'string' && sourceUser._id) ||
-      (typeof sourceUser?.id === 'string' && sourceUser.id) ||
+      (typeof actualUser?._id === 'string' && actualUser._id) ||
+      (typeof actualUser?.id === 'string' && actualUser.id) ||
       '';
-    const token = readAuthToken() || sourceUser?.token;
+    const token = readAuthToken() || actualUser?.token || sourceUser?.token;
     if (!userId || typeof token !== 'string' || !token) return;
+
+    // Skip server refresh for demo user
+    if (token === 'demo-token-123' || actualUser?.email === 'demo@mypswplus.com') {
+      return;
+    }
 
     try {
       const response = await getUserProfileAPI(userId);
-      if (response?.data) {
-        const latestUser = response.data as SessionUser;
+      const fetchedUser = (response?.user || response?.data || response) as SessionUser;
+      if (fetchedUser && (fetchedUser._id || fetchedUser.id)) {
+        const latestUser = fetchedUser;
         latestUser.token = token;
         // Persist a slim session to storage but keep the full user in memory
         persistSession(toSlimSession(latestUser));
@@ -117,6 +129,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : '';
+      console.error('refreshFromServer failed:', msg);
       if (/invalid|expired|token|not active|401/i.test(msg)) {
         clearStoredSession();
         setRawUser(null);

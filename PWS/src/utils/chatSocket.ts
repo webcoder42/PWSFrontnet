@@ -2,7 +2,9 @@ import { io, type Socket } from 'socket.io-client';
 
 import { readAuthToken } from './sessionStorage';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
+const rawBaseUrl = import.meta.env.VITE_API_BASE_URL || 'https://api.mypswplus.com/api';
+const cleanUrl = rawBaseUrl.replace(/\/+$/, '');
+const API_BASE_URL = cleanUrl.endsWith('/api') ? cleanUrl : `${cleanUrl}/api`;
 export const SOCKET_SERVER_URL = API_BASE_URL.replace(/\/api\/?$/, '');
 
 type ChatMessagePayload = {

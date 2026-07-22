@@ -14,9 +14,11 @@ import SetupHeader from '../components/profileSetup/setupHeader/setupHeader';
 import SetupFooter from '../components/profileSetup/setupFooter/setupFooter';
 import StepWrapper from '../components/profileSetup/stepWrapper/stepWrapper';
 
+import { useState } from 'react';
 import { useProfileState } from '../hooks/useProfileState';
 
 const ProfileSetupPage = () => {
+  const [phoneVerified, setPhoneVerified] = useState(false);
   const {
     currentStep,
     formData,
@@ -57,7 +59,7 @@ const ProfileSetupPage = () => {
             </StepWrapper>
 
             <StepWrapper step={3} currentStep={currentStep}>
-              <ContactInfo formData={formData} setFormData={setFormData} />
+              <ContactInfo formData={formData} setFormData={setFormData} onPhoneVerifiedChange={setPhoneVerified} />
             </StepWrapper>
 
             <StepWrapper step={4} currentStep={currentStep}>
@@ -92,6 +94,8 @@ const ProfileSetupPage = () => {
           handleBack={handleBack}
           handleContinue={handleContinue}
           errors={errors}
+          phoneVerified={phoneVerified}
+          phoneStep={3}
         />
       </main>
     </div>

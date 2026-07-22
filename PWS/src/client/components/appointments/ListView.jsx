@@ -1,46 +1,27 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { useUser } from '../../../context/UserContext';
-import { getAppointmentsByUserAPI } from '../../../utils/api';
-import { useLiveDataRefresh } from '../../../hooks/useLiveDataRefresh';
+import React, { useState } from 'react';
+import { useUser } from '../../context/UserContext';
+import { useClientAppointments, useUpdateAppointmentStatus } from '../../hooks/useClientQueries';
 
-const StarMini = ({ value }) => (
-  <span className="text-amber-400 text-xs tracking-tight">
-    {'★'.repeat(Math.min(5, Math.max(0, value)))}
-    <span className="text-gray-200">{'★'.repeat(5 - Math.min(5, Math.max(0, value)))}</span>
-  </span>
-);
-
-const ListView = ({ onBookNew, onReschedule, onViewDetails, refreshKey = 0 }) => {
-  const { rawUser, profile } = useUser();
-  const [appointments, setAppointments] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+const ListView = ({ onBookNew, onReschedule, onViewDetails }) => {
+  const { user } = useUser();
+  const uId = user?._id || user?.id;
+  const { data: appointments = [], isLoading: loading, error: fetchError } = useClientAppointments(uId);
+  const updateStatusMutation = useUpdateAppointmentStatus();
   const [activeTab, setActiveTab] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedAppt, setSelectedAppt] = useState(null);
 
-  const fetchAppointments = useCallback(async () => {
+  const handleMarkAsComplete = async (apptId) => {
     try {
-      const uId = rawUser?._id || rawUser?.id || profile?.id || '5f8d04b3b54764421b7156c0';
-      const response = await getAppointmentsByUserAPI(uId);
-      if (response.success) {
-        setAppointments(response.data || []);
-      } else {
-        throw new Error(response.message || 'Failed to fetch appointments');
+      await updateStatusMutation.mutateAsync({ appointmentId: apptId, status: 'completed' });
+      if (selectedAppt && selectedAppt._id === apptId) {
+        setSelectedAppt(prev => ({ ...prev, status: 'completed' }));
       }
     } catch (err) {
-      console.error('Error fetching appointments:', err);
-      setError(err.message);
-    } finally {
-      setLoading(false);
+      console.error('Failed to mark appointment as complete:', err);
+      alert(err.message || 'Failed to complete appointment');
     }
-  }, [rawUser?._id, rawUser?.id, profile?.id]);
-
-  useEffect(() => {
-    setLoading(true);
-    fetchAppointments();
-  }, [fetchAppointments, refreshKey]);
-
-  useLiveDataRefresh(fetchAppointments);
+  };
 
   const normalizeStatus = (status) => String(status || '').toLowerCase().trim();
 
@@ -114,11 +95,8 @@ const ListView = ({ onBookNew, onReschedule, onViewDetails, refreshKey = 0 }) =>
   };
 
   const filteredAppointments = appointments.filter(appt => {
-    const pswName = appt.pswId 
-      ? (typeof appt.pswId === 'object' 
-         ? `${appt.pswId.firstName || ''} ${appt.pswId.lastName || ''}`.toLowerCase() 
-         : '')
-      : '';
+    // 1. Filter by search query
+    const pswName = appt.pswId ? `${appt.pswId.firstName} ${appt.pswId.lastName}`.toLowerCase() : '';
     const serviceName = (appt.service || '').toLowerCase();
     const dateStr = (appt.date || '').toLowerCase();
     const query = searchQuery.toLowerCase();
@@ -126,6 +104,7 @@ const ListView = ({ onBookNew, onReschedule, onViewDetails, refreshKey = 0 }) =>
 
     if (!matchesSearch) return false;
 
+    // 2. Filter by tab
     if (activeTab === 'All') return true;
     const s = normalizeStatus(appt.status);
     if (activeTab === 'Upcoming') return s === 'pending' || s === 'confirmed';
@@ -172,14 +151,14 @@ const ListView = ({ onBookNew, onReschedule, onViewDetails, refreshKey = 0 }) =>
     );
   }
 
-  if (error) {
+  if (fetchError) {
     return (
       <div className="p-10 text-center bg-red-50/50 border border-red-100 text-red-600 rounded-[2.5rem] my-10 max-w-xl mx-auto">
         <div className="w-16 h-16 bg-red-100/50 text-red-500 rounded-full flex items-center justify-center mx-auto mb-4">
           <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
         </div>
         <p className="font-bold text-lg mb-2">Error loading appointments</p>
-        <p className="text-sm mb-6 text-red-500/80">{error}</p>
+        <p className="text-sm mb-6 text-red-500/80">{fetchError.message || 'Failed to load appointments'}</p>
         <button onClick={() => window.location.reload()} className="px-8 py-3 bg-red-600 text-white font-bold rounded-xl text-[10px] uppercase tracking-widest hover:bg-red-700 transition-colors">
           Retry Connection
         </button>
@@ -188,11 +167,11 @@ const ListView = ({ onBookNew, onReschedule, onViewDetails, refreshKey = 0 }) =>
   }
 
   return (
-    <div className="animate-in fade-in duration-500 pb-20">
+    <div className="animate-in fade-in duration-500 pb-20 overflow-x-hidden">
       {/* Editorial Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 mb-12">
         <div>
-          <h2 className="text-5xl font-bold text-gray-900 mb-3 font-serif tracking-tight">Appointments</h2>
+          <h2 className="text-3xl md:text-5xl font-bold text-gray-900 mb-3 font-serif tracking-tight">Appointments</h2>
           <div className="flex items-center text-gray-400 bg-white px-4 py-2 rounded-2xl border border-gray-50 shadow-[0_4px_20px_rgba(0,0,0,0.02)] w-fit">
             <svg className="w-4 h-4 mr-2 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
             <span className="text-[11px] font-bold uppercase tracking-widest leading-none">Manage Scheduled Care Visits</span>
@@ -200,7 +179,7 @@ const ListView = ({ onBookNew, onReschedule, onViewDetails, refreshKey = 0 }) =>
         </div>
         <button 
           onClick={onBookNew}
-          className="bg-gradient-to-r from-[#5915BD] to-[#7C3AED] text-white px-10 py-5 rounded-[1.5rem] font-bold flex items-center shadow-[0_20px_50px_rgba(89,21,189,0.15)] hover:shadow-[0_20px_50px_rgba(89,21,189,0.25)] hover:-translate-y-1 transition-all active:scale-[0.98] uppercase tracking-widest text-[11px]"
+          className="bg-gradient-to-r from-[#5915BD] to-[#7C3AED] text-white px-6 md:px-10 py-4 md:py-5 rounded-[1.5rem] font-bold flex items-center shadow-[0_20px_50px_rgba(89,21,189,0.15)] hover:shadow-[0_20px_50px_rgba(89,21,189,0.25)] hover:-translate-y-1 transition-all active:scale-[0.98] uppercase tracking-widest text-[11px]"
         >
           <span className="text-xl mr-3 font-normal">+</span> Book New Session
         </button>
@@ -213,7 +192,7 @@ const ListView = ({ onBookNew, onReschedule, onViewDetails, refreshKey = 0 }) =>
             <button 
               key={tab} 
               onClick={() => setActiveTab(tab)}
-              className={`flex-1 md:flex-none px-8 py-3 rounded-[1.25rem] text-[10px] font-bold uppercase tracking-widest transition-all ${
+              className={`flex-1 md:flex-none px-2 md:px-8 py-3 rounded-[1.25rem] text-[10px] font-bold uppercase tracking-widest transition-all ${
                 tab === activeTab ? 'bg-white text-purple-600 shadow-sm border border-gray-50' : 'text-gray-400 hover:text-gray-600'
               }`}
             >
@@ -249,18 +228,14 @@ const ListView = ({ onBookNew, onReschedule, onViewDetails, refreshKey = 0 }) =>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {upcomingAppointments.map((appt) => {
               const styles = getStatusStyles(appt.status);
-              const pswName = appt.pswId 
-                ? (typeof appt.pswId === 'object' 
-                   ? `${appt.pswId.firstName || ''} ${appt.pswId.lastName || ''}`.trim() 
-                   : 'Care Provider')
-                : 'Care Provider';
+              const pswName = appt.pswId ? `${appt.pswId.firstName} ${appt.pswId.lastName}` : 'Care Provider';
               const pswPhoto = appt.pswId?.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${pswName}`;
               
               return (
                 <div 
                   key={appt._id} 
-                  className={`bg-white p-10 rounded-[2.5rem] border border-gray-50 shadow-[0_20px_50px_rgba(0,0,0,0.02)] relative overflow-hidden group transition-all cursor-pointer ${styles.borderColor}`} 
-                  onClick={() => onViewDetails(appt)}
+                  className={`bg-white p-6 md:p-10 rounded-[2.5rem] border border-gray-50 shadow-[0_20px_50px_rgba(0,0,0,0.02)] relative overflow-hidden group transition-all cursor-pointer ${styles.borderColor}`} 
+                  onClick={() => setSelectedAppt(appt)}
                 >
                    <div className={`absolute top-0 right-0 w-24 h-24 ${styles.badgeBg} rounded-bl-[100%]`}></div>
                    <div className="flex items-center mb-8 relative">
@@ -294,10 +269,10 @@ const ListView = ({ onBookNew, onReschedule, onViewDetails, refreshKey = 0 }) =>
                       </div>
                    </div>
                    <button 
-                     onClick={(e) => { e.stopPropagation(); onViewDetails(appt); }} 
+                     onClick={(e) => { e.stopPropagation(); setSelectedAppt(appt); }} 
                      className="w-full py-5 bg-gradient-to-r from-[#5915BD]/5 to-[#7C3AED]/5 text-purple-600 font-bold text-[10px] uppercase tracking-widest flex items-center justify-center rounded-2xl hover:from-[#5915BD] hover:to-[#7C3AED] hover:text-white hover:shadow-xl hover:shadow-purple-100 transition-all"
                    >
-                      View Details <svg className="w-3.5 h-3.5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
+                      Manage Session <svg className="w-3.5 h-3.5 ml-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M17 8l4 4m0 0l-4 4m4-4H3"/></svg>
                    </button>
                 </div>
               );
@@ -318,17 +293,13 @@ const ListView = ({ onBookNew, onReschedule, onViewDetails, refreshKey = 0 }) =>
         ) : (
           <div className="space-y-4 bg-white/50 backdrop-blur-md p-8 rounded-[2.5rem] border border-gray-50 shadow-[0_10px_40px_rgba(0,0,0,0.02)]">
             {historyAppointments.map((past) => {
-              const pswName = past.pswId 
-                ? (typeof past.pswId === 'object' 
-                   ? `${past.pswId.firstName || ''} ${past.pswId.lastName || ''}`.trim() 
-                   : 'Care Provider')
-                : 'Care Provider';
+              const pswName = past.pswId ? `${past.pswId.firstName} ${past.pswId.lastName}` : 'Care Provider';
               const isCompleted = normalizeStatus(past.status) === 'completed';
               
               return (
                 <div 
                   key={past._id} 
-                  onClick={() => onViewDetails(past)} 
+                  onClick={() => setSelectedAppt(past)} 
                   className="bg-white p-6 rounded-[1.75rem] border border-gray-50 flex flex-col md:flex-row items-start md:items-center group hover:shadow-lg hover:shadow-gray-200/20 transition-all cursor-pointer gap-6"
                 >
                    <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 group-hover:bg-purple-50 group-hover:text-purple-600 transition-colors ${isCompleted ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-500'}`}>
@@ -337,17 +308,6 @@ const ListView = ({ onBookNew, onReschedule, onViewDetails, refreshKey = 0 }) =>
                    <div className="flex-1">
                       <h4 className="font-bold text-gray-900 text-sm mb-1">{pswName} <span className="text-gray-300 mx-2">·</span> <span className="text-[10px] text-gray-400 uppercase tracking-widest font-bold font-sans">{past.service}</span></h4>
                       <p className="text-[10px] text-gray-400 font-medium tracking-tight font-sans">{past.date} @ {past.time}</p>
-                      {isCompleted && Number(past.rating) >= 1 && (
-                        <div className="mt-2 flex items-center gap-2">
-                          <StarMini value={Number(past.rating)} />
-                          {past.comment ? (
-                            <span className="text-[10px] text-gray-500 italic truncate max-w-[200px]">&ldquo;{past.comment}&rdquo;</span>
-                          ) : null}
-                        </div>
-                      )}
-                      {isCompleted && (!past.rating || Number(past.rating) < 1) && (
-                        <p className="mt-2 text-[9px] font-bold uppercase tracking-widest text-purple-600">Submit your rating</p>
-                      )}
                    </div>
                    <div className="flex items-center justify-between w-full md:w-auto md:space-x-10">
                       <div className="flex items-center">
@@ -355,10 +315,10 @@ const ListView = ({ onBookNew, onReschedule, onViewDetails, refreshKey = 0 }) =>
                          <span className={`text-[9px] font-bold uppercase tracking-widest ${isCompleted ? 'text-emerald-600' : 'text-red-500'}`}>{normalizeStatus(past.status)}</span>
                       </div>
                       <button 
-                        onClick={(e) => { e.stopPropagation(); onViewDetails(past); }} 
-                        className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-purple-600 bg-purple-50 hover:bg-purple-100 rounded-xl transition-all"
+                        onClick={(e) => { e.stopPropagation(); setSelectedAppt(past); }} 
+                        className="p-3 text-gray-300 hover:text-purple-600 hover:bg-purple-50 rounded-xl transition-all"
                       >
-                        View Details
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M12 5v.01M12 12v.01M12 19v.01M12 6a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2zm0 7a1 1 0 110-2 1 1 0 010 2z"/></svg>
                       </button>
                    </div>
                 </div>
@@ -367,6 +327,118 @@ const ListView = ({ onBookNew, onReschedule, onViewDetails, refreshKey = 0 }) =>
           </div>
         )}
       </div>
+      )}
+
+      {selectedAppt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 overflow-y-auto">
+          {/* Backdrop */}
+          <div 
+            className="fixed inset-0 bg-gray-900/60 backdrop-blur-md transition-opacity duration-300"
+            onClick={() => setSelectedAppt(null)}
+          ></div>
+
+          {/* Modal Container */}
+          <div className="bg-white/95 backdrop-blur-lg rounded-[2.5rem] p-8 md:p-10 border border-gray-150/20 shadow-2xl relative w-full max-w-lg z-10 animate-in zoom-in-95 duration-200">
+            {/* Close Button */}
+            <button 
+              onClick={() => setSelectedAppt(null)}
+              className="absolute top-6 right-6 p-2 rounded-full text-gray-400 hover:text-gray-600 hover:bg-gray-100/50 transition-all cursor-pointer"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12"/>
+              </svg>
+            </button>
+
+            {/* Caregiver Profile Info */}
+            <div className="flex items-center mb-8 pb-6 border-b border-gray-100">
+              <img 
+                src={selectedAppt.pswId?.photoUrl || `https://api.dicebear.com/7.x/avataaars/svg?seed=${selectedAppt.pswId?.firstName || 'Care'}`} 
+                className="w-20 h-20 rounded-2xl object-cover ring-4 ring-white shadow-md shrink-0" 
+                alt="Caregiver" 
+              />
+              <div className="ml-5">
+                <p className="text-purple-600 text-[10px] font-bold uppercase tracking-widest mb-1">Your Caregiver</p>
+                <h4 className="font-bold text-gray-900 text-2xl tracking-tight leading-none mb-1.5">
+                  {selectedAppt.pswId ? `${selectedAppt.pswId.firstName} ${selectedAppt.pswId.lastName}` : 'Care Provider'}
+                </h4>
+                <div className="flex items-center">
+                  <span className={`w-2 h-2 rounded-full ${
+                    normalizeStatus(selectedAppt.status) === 'completed' ? 'bg-emerald-500' :
+                    normalizeStatus(selectedAppt.status) === 'cancelled' ? 'bg-rose-500' :
+                    normalizeStatus(selectedAppt.status) === 'confirmed' ? 'bg-purple-500' : 'bg-orange-400'
+                  } mr-2 shadow-xs`}></span>
+                  <p className="text-[9px] text-gray-400 font-bold uppercase tracking-widest">
+                    Status: <span className={
+                      normalizeStatus(selectedAppt.status) === 'completed' ? 'text-emerald-600' :
+                      normalizeStatus(selectedAppt.status) === 'cancelled' ? 'text-rose-600' :
+                      normalizeStatus(selectedAppt.status) === 'confirmed' ? 'text-purple-600' : 'text-orange-500'
+                    }>{normalizeStatus(selectedAppt.status)}</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Visit Details */}
+            <div className="space-y-5 mb-8">
+              <h5 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Visit Summary</h5>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-25 flex flex-col">
+                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mb-1">Service Type</span>
+                  <span className="text-sm font-bold text-gray-800">{selectedAppt.service}</span>
+                </div>
+                <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-25 flex flex-col">
+                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mb-1">Duration</span>
+                  <span className="text-sm font-bold text-gray-800">{selectedAppt.duration || '1 hour'}</span>
+                </div>
+                <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-25 flex flex-col">
+                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mb-1">Date</span>
+                  <span className="text-sm font-bold text-gray-800">{selectedAppt.date}</span>
+                </div>
+                <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-25 flex flex-col">
+                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mb-1">Time Window</span>
+                  <span className="text-sm font-bold text-gray-800">{selectedAppt.time}</span>
+                </div>
+              </div>
+
+              <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-25 flex flex-col">
+                <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider mb-1">Location</span>
+                <span className="text-sm font-bold text-gray-800">{selectedAppt.location || 'Client Home'}</span>
+              </div>
+
+              <div className="bg-gray-50/50 p-4 rounded-2xl border border-gray-25 flex justify-between items-center">
+                <div className="flex flex-col">
+                  <span className="text-[9px] text-gray-400 font-bold uppercase tracking-wider">Total Amount</span>
+                  <span className="text-[9px] text-gray-400 font-medium">Processed via Stripe</span>
+                </div>
+                <span className="text-xl font-black text-gray-900">${Number(selectedAppt.price || 0).toFixed(2)}</span>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-4">
+              <button 
+                onClick={() => setSelectedAppt(null)} 
+                className="flex-1 py-4 bg-gray-100 hover:bg-gray-200 text-gray-500 font-bold text-[11px] uppercase tracking-widest rounded-2xl transition-all"
+              >
+                Close
+              </button>
+              
+              {/* Only show Mark as Complete if status is confirmed */}
+              {normalizeStatus(selectedAppt.status) === 'confirmed' && (
+                <button 
+                  onClick={() => handleMarkAsComplete(selectedAppt._id)} 
+                  className="flex-1 py-4 bg-gradient-to-r from-emerald-600 to-teal-500 text-white font-bold text-[11px] uppercase tracking-widest rounded-2xl hover:shadow-lg hover:shadow-emerald-100 hover:-translate-y-0.5 transition-all flex items-center justify-center gap-2"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M5 13l4 4L19 7"/>
+                  </svg>
+                  Mark as Complete
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

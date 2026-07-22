@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 
 import { clsx } from 'clsx';
 import {
@@ -270,44 +271,31 @@ const ClientsPage = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('All Clients');
   const [searchQuery, setSearchQuery] = useState('');
-  const [clients, setClients] = useState<PswClient[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [selectedClient, setSelectedClient] = useState<PswClient | null>(null);
-  const [profileLoading, setProfileLoading] = useState(false);
   const { rawUser, profile } = useUser();
+  const pswId = getLoggedInUserId(rawUser, profile);
 
   const tabs = ['All Clients', 'Active', 'New', 'Inactive'];
 
-  useEffect(() => {
-    const fetchClients = async () => {
-      const pswId = getLoggedInUserId(rawUser, profile);
-      if (!pswId) {
-        setLoading(false);
-        setError('Please sign in to view your clients.');
-        return;
-      }
+  const { data: clients = [], isLoading: loading, error } = useQuery({
+    queryKey: ['clients', pswId],
+    queryFn: () =>
+      getAppointmentsByPswAPI(pswId!).then(r => {
+        if (!r.success) throw new Error(r.message || 'Failed to load clients');
+        return buildPswClientsFromAppointments(r.data || []);
+      }),
+    enabled: !!pswId,
+  });
 
-      try {
-        setLoading(true);
-        setError(null);
-        const response = await getAppointmentsByPswAPI(pswId);
-        if (response.success) {
-          setClients(buildPswClientsFromAppointments(response.data || []));
-        } else {
-          throw new Error(response.message || 'Failed to load clients');
-        }
-      } catch (err: unknown) {
-        const message = err instanceof Error ? err.message : 'Failed to load clients';
-        setError(message);
-        setClients([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchClients();
-  }, [rawUser?._id, rawUser?.id, profile?.id]);
+  const { data: selectedClientProfile, isLoading: profileLoading } = useQuery({
+    queryKey: ['client-profile', selectedClient?.userId],
+    queryFn: () =>
+      getUserProfileAPI(selectedClient!.userId).then(r => {
+        if (r.success && r.data) return mergeUserProfileIntoClient(selectedClient!, r.data as Record<string, unknown>);
+        return selectedClient!;
+      }),
+    enabled: !!selectedClient,
+  });
 
   const pageSummary = useMemo(() => getClientsPageSummary(clients), [clients]);
 
@@ -320,19 +308,8 @@ const ClientsPage = () => {
     return matchesTab && matchesSearch;
   });
 
-  const handleViewProfile = async (client: PswClient) => {
+  const handleViewProfile = (client: PswClient) => {
     setSelectedClient(client);
-    setProfileLoading(true);
-    try {
-      const response = await getUserProfileAPI(client.userId);
-      if (response.success && response.data) {
-        setSelectedClient(mergeUserProfileIntoClient(client, response.data as Record<string, unknown>));
-      }
-    } catch (err) {
-      console.error('Failed to load client profile:', err);
-    } finally {
-      setProfileLoading(false);
-    }
   };
 
   return (
@@ -391,7 +368,7 @@ const ClientsPage = () => {
               </div>
             ) : error ? (
               <div className="col-span-full bg-white rounded-5xl border border-red-100 p-20 text-center">
-                <p className="text-red-500 font-medium font-dm">{error}</p>
+                <p className="text-red-500 font-medium font-dm">{error instanceof Error ? error.message : 'Failed to load clients'}</p>
               </div>
             ) : filteredClients.length > 0 ? (
               filteredClients.map(client => (
@@ -416,7 +393,7 @@ const ClientsPage = () => {
 
       {selectedClient && (
         <ClientProfileModal
-          client={selectedClient}
+          client={selectedClientProfile || selectedClient}
           loading={profileLoading}
           onClose={() => setSelectedClient(null)}
         />

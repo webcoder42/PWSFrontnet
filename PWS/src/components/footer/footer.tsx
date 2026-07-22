@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import { FaFacebook, FaTwitter, FaInstagram, FaLinkedin } from 'react-icons/fa';
 import logoDark from '../../assets/logo-dark.png';
 
@@ -48,8 +49,8 @@ const Footer = () => {
               <ul className="space-y-4 text-gray-500">
                 <li><a href="#" className="hover:text-primary hover:translate-x-1 inline-block duration-300">Contact Us</a></li>
                 <li><a href="#" className="hover:text-primary hover:translate-x-1 inline-block duration-300">FAQ</a></li>
-                <li><a href="#" className="hover:text-primary hover:translate-x-1 inline-block duration-300">Privacy Policy</a></li>
-                <li><a href="#" className="hover:text-primary hover:translate-x-1 inline-block duration-300">Terms of Service</a></li>
+                <li><Link to="/privacy-policy" className="hover:text-primary hover:translate-x-1 inline-block duration-300">Privacy Policy</Link></li>
+                <li><Link to="/terms-of-service" className="hover:text-primary hover:translate-x-1 inline-block duration-300">Terms of Service</Link></li>
               </ul>
             </div>
 

@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 
 import { clsx } from 'clsx';
 import { HiOutlineLightningBolt, HiOutlineCalendar } from 'react-icons/hi';
@@ -6,8 +7,9 @@ import { HiOutlineLightningBolt, HiOutlineCalendar } from 'react-icons/hi';
 import DashboardSidebar from '../components/dashboard/dashboardSidebar/dashboardSidebar';
 import DashboardHeader from '../components/dashboard/dashboardHeader/dashboardHeader';
 import RequestCard from '../components/dashboard/requestCard/requestCard';
+import ProviderAppointmentDetailsModal from '../components/dashboard/providerDetails/ProviderAppointmentDetailsModal';
 import { useUser } from '../context/UserContext';
-import { getAppointmentsByPswAPI } from '../utils/api';
+import { getAppointmentsByPswAPI, updateAppointmentStatusAPI } from '../utils/api';
 import {
   computeTodaySummary,
   getLoggedInUserId,
@@ -19,44 +21,30 @@ import { useLiveDataRefresh } from '../hooks/useLiveDataRefresh';
 const CareRequestsPage = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [activeTab, setActiveTab] = useState('All Requests');
-  const [appointments, setAppointments] = useState<Record<string, unknown>[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [selectedAppointment, setSelectedAppointment] = useState<Record<string, unknown> | null>(null);
   const { rawUser, profile } = useUser();
+  const queryClient = useQueryClient();
+  const pswId = getLoggedInUserId(rawUser, profile);
 
   const tabs = ['All Requests', 'Today', 'Upcoming', 'History'];
 
-  const fetchCareRequests = useCallback(async () => {
-    const pswId = getLoggedInUserId(rawUser, profile);
-    if (!pswId) {
-      setLoading(false);
-      setError('Please sign in to view your care requests.');
-      return;
-    }
+  const { data: appointments = [], isLoading, error } = useQuery({
+    queryKey: ['appointments', pswId],
+    queryFn: () => getAppointmentsByPswAPI(pswId!).then(r => r.data || []),
+    enabled: !!pswId,
+  });
 
-    try {
-      setError(null);
-      const response = await getAppointmentsByPswAPI(pswId);
-      if (response.success) {
-        setAppointments(response.data || []);
-      } else {
-        throw new Error(response.message || 'Failed to load appointments');
-      }
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to load appointments';
-      setError(message);
-      setAppointments([]);
-    } finally {
-      setLoading(false);
-    }
-  }, [rawUser, profile]);
+  const statusMutation = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: string }) =>
+      updateAppointmentStatusAPI(id, status as 'confirmed' | 'completed' | 'cancelled'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['appointments', pswId] });
+    },
+  });
 
-  useEffect(() => {
-    setLoading(true);
-    void fetchCareRequests();
-  }, [fetchCareRequests]);
-
-  useLiveDataRefresh(fetchCareRequests);
+  useLiveDataRefresh(() => {
+    queryClient.invalidateQueries({ queryKey: ['appointments', pswId] });
+  }, { enabled: !!pswId });
 
   const requests = useMemo(
     () =>
@@ -68,15 +56,15 @@ const CareRequestsPage = () => {
     (req) => activeTab === 'All Requests' || req.category === activeTab,
   );
 
-  const handleStatusChange = (appointmentId: string, newStatus: DisplayStatus) => {
-    setAppointments((prev) =>
-      prev.map((appt) =>
+  const handleStatusChange = useCallback((appointmentId: string, newStatus: DisplayStatus) => {
+    queryClient.setQueryData<Record<string, unknown>[]>(['appointments', pswId], (old) =>
+      (old || []).map((appt) =>
         String(appt._id) === appointmentId
           ? { ...appt, status: newStatus.toLowerCase() }
           : appt,
       ),
     );
-  };
+  }, [queryClient, pswId]);
 
   const todaySummary = useMemo(
     () => computeTodaySummary(appointments),
@@ -162,37 +150,56 @@ const CareRequestsPage = () => {
               </div>
 
               <div className="space-y-4">
-                {loading ? (
+                {isLoading ? (
                   <div className="bg-white rounded-4xl border border-gray-100 p-12 text-center">
                     <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary mx-auto mb-4" />
                     <p className="text-gray-400 font-medium font-dm">Loading your appointments...</p>
                   </div>
                 ) : error ? (
                   <div className="bg-white rounded-4xl border border-red-100 p-12 text-center">
-                    <p className="text-red-500 font-medium font-dm">{error}</p>
+                    <p className="text-red-500 font-medium font-dm">{error instanceof Error ? error.message : 'Failed to load appointments'}</p>
                   </div>
                 ) : filteredRequests.length > 0 ? (
-                  filteredRequests.map(req => (
-                    <RequestCard
-                      key={req.id}
-                      appointmentId={req.id}
-                      image={req.image}
-                      initials={req.initials}
-                      color={req.color}
-                      name={req.name}
-                      type={req.type}
-                      date={req.date}
-                      time={req.time}
-                      status={req.status}
-                      paymentStatus={req.paymentStatus}
-                      onStatusChange={handleStatusChange}
-                    />
-                  ))
+                  filteredRequests.map(req => {
+                    const full = appointments.find(a => String(a._id || a.id || '') === req.id) || null;
+                    return (
+                      <RequestCard
+                        key={req.id}
+                        appointmentId={req.id}
+                        appointment={full}
+                        image={req.image}
+                        initials={req.initials}
+                        color={req.color}
+                        name={req.name}
+                        type={req.type}
+                        date={req.date}
+                        time={req.time}
+                        status={req.status}
+                        paymentStatus={req.paymentStatus}
+                        onStatusChange={handleStatusChange}
+                        onViewDetails={(appt) => setSelectedAppointment(appt)}
+                      />
+                    );
+                  })
                 ) : (
                   <div className="bg-white rounded-4xl border border-dashed border-gray-200 p-12 text-center">
                     <p className="text-gray-400 font-medium font-dm">No {activeTab.toLowerCase()} requests found.</p>
                     <p className="text-gray-300 text-sm font-dm mt-2">Bookings from clients who select you will appear here.</p>
                   </div>
+                )}
+              
+                {selectedAppointment && (
+                  <ProviderAppointmentDetailsModal
+                    appointment={selectedAppointment}
+                    onClose={() => setSelectedAppointment(null)}
+                    onReschedule={() => setSelectedAppointment(null)}
+                    onStatusUpdated={(updated) => {
+                      queryClient.setQueryData<Record<string, unknown>[]>(['appointments', pswId], (old) =>
+                        (old || []).map(a => (String(a._id || a.id) === String(updated._id || updated.id) ? { ...a, status: updated.status } : a)),
+                      );
+                      setSelectedAppointment(null);
+                    }}
+                  />
                 )}
               </div>
             </div>

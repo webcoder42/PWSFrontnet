@@ -25,7 +25,7 @@ export default function PaymentMethodCard({
     <button
       type="button"
       onClick={onSelect}
-      className={`w-full text-left transition-all duration-300 rounded-[1.75rem] border-2 p-6 shadow-sm hover:shadow-md ${
+      className={`w-full text-left transition-all duration-300 rounded-[1.75rem] border-2 p-4 md:p-6 shadow-sm hover:shadow-md ${
         isSelected
           ? 'border-purple-500 bg-purple-50 shadow-md shadow-purple-100'
           : 'border-gray-100 bg-white hover:border-purple-200'
@@ -42,7 +42,7 @@ export default function PaymentMethodCard({
           </div>
           <div className="flex-1">
             <p className="text-[10px] font-bold uppercase tracking-[0.32em] text-gray-400">{brand?.toUpperCase() || 'Card'}</p>
-            <p className="mt-2 text-lg font-extrabold tracking-[0.08em] text-gray-900">•••• {last4}</p>
+            <p className="mt-2 text-base md:text-lg font-extrabold tracking-[0.08em] text-gray-900">•••• {last4}</p>
             <div className="mt-4 grid grid-cols-2 gap-4">
               <div>
                 <p className="text-[9px] font-bold uppercase tracking-[0.32em] text-gray-400">Cardholder</p>

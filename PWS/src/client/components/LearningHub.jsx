@@ -1,136 +1,161 @@
-import React, { useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
+import { useUser } from '../context/UserContext';
+import { updateUserProfileAPI } from '../utils/api';
 import booksImage from '../assets/pair of books.png';
 
+const COURSES_CATALOG = [
+  {
+    id: 1,
+    title: 'Understanding Your Care Plan',
+    category: 'Getting Started',
+    duration: '25 min',
+    lessons: 5,
+    icon: 'file-text',
+    curriculum: [
+      { title: '1. Introduction to Care Plans', time: '10 mins' },
+      { title: '2. Roles & Responsibilities', time: '15 mins' },
+      { title: '3. Reading Your Daily Schedule', time: '12 mins' },
+      { title: '4. Requesting Changes', time: '8 mins' },
+      { title: '5. Sharing with Family', time: '20 mins' },
+    ],
+    details: { duration: '25 Minutes', difficulty: 'Beginner', certification: 'PSWB Core Credit' },
+    instructor: { name: 'Dr. Sarah Thompson', role: 'Chief Nursing Officer', seed: 'Sarah' },
+    color: 'from-purple-600 to-indigo-700'
+  },
+  {
+    id: 2,
+    title: 'Managing Medications Safely',
+    category: 'Health & Care',
+    duration: '20 min',
+    lessons: 4,
+    icon: 'medication',
+    curriculum: [
+      { title: '1. Medication Basics', time: '5 mins' },
+      { title: '2. Tracking Your Schedule', time: '6 mins' },
+      { title: '3. Side Effects & Warnings', time: '4 mins' },
+      { title: '4. Communicating with your PSW', time: '5 mins' },
+    ],
+    details: { duration: '20 Minutes', difficulty: 'Intermediate', certification: 'Vitality Core Certified' },
+    instructor: { name: 'Dr. Julian Vance', role: 'Chief Nursing Officer', seed: 'Julian' },
+    color: 'from-blue-600 to-cyan-700'
+  },
+  {
+    id: 3,
+    title: 'Booking and Appointments',
+    category: 'Platform Guide',
+    duration: '15 min',
+    lessons: 3,
+    icon: 'calendar',
+    curriculum: [
+      { title: '1. Using the Booking Tool', time: '5 mins' },
+      { title: '2. Rescheduling & Cancellations', time: '6 mins' },
+      { title: '3. Feedback & Ratings', time: '4 mins' },
+    ],
+    details: { duration: '15 Minutes', difficulty: 'Beginner', certification: 'PSWB Core Credit' },
+    instructor: { name: 'Dr. Sarah Thompson', role: 'Chief Nursing Officer', seed: 'Sarah' },
+    color: 'from-emerald-600 to-teal-700'
+  },
+  {
+    id: 4,
+    title: 'How PSWs Are Matched',
+    category: 'Videos',
+    duration: '5 min',
+    lessons: 1,
+    icon: 'video',
+    curriculum: [
+      { title: '1. Matching Algorithm Intro', time: '5 mins' },
+    ],
+    details: { duration: '5 Minutes', difficulty: 'Beginner', certification: 'General Info' },
+    instructor: { name: 'Michael Chen', role: 'Community Lead', seed: 'Michael' },
+    color: 'from-orange-500 to-rose-600'
+  },
+];
+
+const COURSE_ICONS = {
+  'file-text': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+  ),
+  'medication': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.628.251a2 2 0 01-1.268 0l-.628-.251a6 6 0 00-3.86-.517l-2.387.477a2 2 0 00-1.022.547l-.547 1.022a2 2 0 00.547 1.022l2.387.477a6 6 0 003.86-.517l.628.251a2 2 0 011.268 0l.628.251a6 6 0 003.86.517l2.387-.477a2 2 0 001.022-.547l.547-1.022a2 2 0 00-.547-1.022zM12 11c-1.105 0-2-.895-2-2s.895-2 2-2 2 .895 2 2-.895 2-2 2z"/></svg>
+  ),
+  'calendar': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+  ),
+  'video': (
+    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664zM21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+  ),
+};
+
+const tabs = ['All', 'Getting Started', 'Health & Care', 'Platform Guide', 'Videos'];
+
 const LearningHub = () => {
+  const { user, updateUser } = useUser();
   const [activeTab, setActiveTab] = useState('All');
-  const [view, setView] = useState('main'); // 'main' or 'course-detail'
+  const [view, setView] = useState('main');
   const [selectedCourse, setSelectedCourse] = useState(null);
+  const [saving, setSaving] = useState(false);
 
-  const tabs = ['All', 'Getting Started', 'Health & Care', 'Platform Guide', 'Videos'];
+  const courseProgress = useMemo(() => {
+    return user?.courseProgress || {};
+  }, [user?.courseProgress]);
 
-  const courses = [
-    {
-      id: 1,
-      title: 'Understanding Your Care Plan',
-      category: 'Getting Started',
-      duration: '25 min',
-      lessons: 5,
-      progress: 40,
-      icon: (
-        <div className="w-10 h-10 bg-purple-50 rounded-xl flex items-center justify-center text-purple-600">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-        </div>
-      ),
-      curriculum: [
-        { title: '1. Introduction to Care Plans', time: '10 mins', status: 'completed' },
-        { title: '2. Roles & Responsibilities', time: '15 mins', status: 'completed' },
-        { title: '3. Reading Your Daily Schedule', time: '12 mins', status: 'completed' },
-        { title: '4. Requesting Changes', time: '8 mins', status: 'in-progress' },
-        { title: '5. Sharing with Family', time: '20 mins', status: 'upcoming' },
-      ],
-      details: {
-        duration: '25 Minutes',
-        difficulty: 'Beginner',
-        certification: 'PSWB Core Credit'
-      },
-      instructor: {
-        name: 'Dr. Sarah Thompson',
-        role: 'Chief Nursing Officer',
-        seed: 'Sarah'
-      },
-      color: 'from-purple-600 to-indigo-700'
-    },
-    {
-      id: 2,
-      title: 'Managing Medications Safely',
-      category: 'Health & Care',
-      duration: '20 min',
-      lessons: 4,
-      progress: 0,
-      icon: (
-        <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center text-blue-600">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.628.251a2 2 0 01-1.268 0l-.628-.251a6 6 0 00-3.86-.517l-2.387.477a2 2 0 00-1.022.547l-.547 1.022a2 2 0 00.547 1.022l2.387.477a6 6 0 003.86-.517l.628-.251a2 2 0 011.268 0l.628.251a6 6 0 003.86.517l2.387-.477a2 2 0 001.022-.547l.547-1.022a2 2 0 00-.547-1.022z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 11c-1.105 0-2-.895-2-2s.895-2 2-2 2 .895 2 2-.895 2-2 2z"/></svg>
-        </div>
-      ),
-      curriculum: [
-        { title: '1. Medication Basics', time: '5 mins', status: 'not-started' },
-        { title: '2. Tracking Your Schedule', time: '6 mins', status: 'not-started' },
-        { title: '3. Side Effects & Warnings', time: '4 mins', status: 'not-started' },
-        { title: '4. Communicating with your PSW', time: '5 mins', status: 'not-started' },
-      ],
-      details: {
-         duration: '20 Minutes',
-         difficulty: 'Intermediate',
-         certification: 'Vitality Core Certified'
-      },
-      instructor: {
-        name: 'Dr. Julian Vance',
-        role: 'Chief Nursing Officer',
-        seed: 'Julian'
-      },
-      color: 'from-blue-600 to-cyan-700'
-    },
-    {
-      id: 3,
-      title: 'Booking and Appointments',
-      category: 'Platform Guide',
-      duration: '15 min',
-      lessons: 3,
-      progress: 0,
-      icon: (
-        <div className="w-10 h-10 bg-emerald-50 rounded-xl flex items-center justify-center text-emerald-600">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-        </div>
-      ),
-      curriculum: [
-        { title: '1. Using the Booking Tool', time: '5 mins', status: 'not-started' },
-        { title: '2. Rescheduling & Cancellations', time: '6 mins', status: 'not-started' },
-        { title: '3. Feedback & Ratings', time: '4 mins', status: 'not-started' },
-      ],
-      details: {
-         duration: '15 Minutes',
-         difficulty: 'Beginner',
-         certification: 'PSWB Core Credit'
-      },
-      instructor: {
-        name: 'Dr. Sarah Thompson',
-        role: 'Chief Nursing Officer',
-        seed: 'Sarah'
-      },
-      color: 'from-emerald-600 to-teal-700'
-    },
-    {
-      id: 4,
-      title: 'How PSWs Are Matched',
-      category: 'Videos',
-      duration: '5 min',
-      lessons: 1,
-      progress: 0,
-      icon: (
-        <div className="w-10 h-10 bg-orange-50 rounded-xl flex items-center justify-center text-orange-600">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
-        </div>
-      ),
-      curriculum: [
-        { title: '1. Matching Algorithm Intro', time: '5 mins', status: 'not-started' },
-      ],
-      details: {
-         duration: '5 Minutes',
-         difficulty: 'Beginner',
-         certification: 'General Info'
-      },
-      instructor: {
-        name: 'Michael Chen',
-        role: 'Community Lead',
-        seed: 'Michael'
-      },
-      color: 'from-orange-500 to-rose-600'
-    },
-  ];
+  const updateCourseProgress = useCallback(async (courseId, lessonIndex, status) => {
+    if (!user?._id) return;
+    const existing = courseProgress[courseId] || { completedLessons: [], progress: 0 };
+    const completed = [...existing.completedLessons];
+    if (status === 'completed' && !completed.includes(lessonIndex)) {
+      completed.push(lessonIndex);
+    }
+    const total = COURSES_CATALOG.find(c => c.id === courseId)?.lessons || 1;
+    const progress = Math.round((completed.length / total) * 100);
+
+    const newProgress = {
+      ...courseProgress,
+      [courseId]: { completedLessons: completed, progress },
+    };
+
+    updateUser({ courseProgress: newProgress });
+    setSaving(true);
+    try {
+      await updateUserProfileAPI(user._id, { courseProgress: newProgress });
+    } catch {
+      // silent
+    } finally {
+      setSaving(false);
+    }
+  }, [user?._id, courseProgress, updateUser]);
+
+  const courses = useMemo(() => {
+    return COURSES_CATALOG.map(course => {
+      const prog = courseProgress[course.id] || { completedLessons: [], progress: 0 };
+      return {
+        ...course,
+        progress: prog.progress,
+        curriculum: course.curriculum.map((lesson, idx) => ({
+          ...lesson,
+          status: prog.completedLessons.includes(idx) ? 'completed' :
+                  idx === prog.completedLessons.length ? 'in-progress' : 'upcoming',
+        })),
+      };
+    });
+  }, [courseProgress]);
 
   const handleOpenCourse = (course) => {
     setSelectedCourse(course);
     setView('course-detail');
+  };
+
+  const handleLessonClick = (course, lessonIndex, currentStatus) => {
+    if (currentStatus === 'completed') return;
+    if (currentStatus === 'upcoming') return;
+    updateCourseProgress(course.id, lessonIndex, 'completed');
+  };
+
+  const categoryColors = {
+    'Getting Started': 'bg-purple-100 text-purple-700',
+    'Health & Care': 'bg-blue-100 text-blue-700',
+    'Platform Guide': 'bg-emerald-100 text-emerald-700',
+    'Videos': 'bg-orange-100 text-orange-700',
   };
 
   const renderMainPortal = () => (
@@ -159,16 +184,16 @@ const LearningHub = () => {
         <div className="relative z-10 w-full h-full flex flex-col justify-between">
            <div>
               <span className="bg-white/10 backdrop-blur-md px-5 py-2 rounded-full text-[10px] font-bold uppercase tracking-widest border border-white/10 mb-10 inline-block">Continue Learning</span>
-              <h3 className="text-[48px] leading-[48px] tracking-[-1.2px] font-black mb-10 font-serif max-w-lg align-middle">Understanding Your Care Plan</h3>
+              <h3 className="text-[48px] leading-[48px] tracking-[-1.2px] font-black mb-10 font-serif max-w-lg align-middle">{courses[0]?.title || 'Understanding Your Care Plan'}</h3>
            </div>
            
            <div className="w-full">
               <div className="mb-8 max-w-sm">
                  <div className="flex justify-between text-[11px] font-bold text-gray-200 mb-3 ml-1">
-                    <span>60% complete · 2 lessons remaining</span>
+                    <span>{courses[0]?.progress || 0}% complete · { (courses[0]?.lessons || 5) - (courses[0]?.curriculum?.filter(l => l.status === 'completed')?.length || 0) } lessons remaining</span>
                  </div>
                  <div className="w-full h-2.5 bg-white/10 rounded-full overflow-hidden border border-white/5">
-                    <div className="h-full bg-white rounded-full shadow-[0_0_10px_rgba(255,255,255,0.5)]" style={{ width: '60%' }}></div>
+                    <div className="h-full bg-white rounded-full shadow-[0_0_10px_rgba(255,255,255,0.5)]" style={{ width: `${courses[0]?.progress || 0}%` }}></div>
                  </div>
               </div>
               
@@ -176,7 +201,7 @@ const LearningHub = () => {
                 onClick={() => handleOpenCourse(courses[0])}
                 className="bg-white text-[#4F1A8C] px-10 py-5 rounded-2xl font-bold text-sm hover:shadow-xl hover:shadow-purple-900/20 transition-all flex items-center group active:scale-95"
                >
-                 Continue Lesson 
+                 {courses[0]?.progress > 0 ? 'Continue Lesson' : 'Start Course'}
                  <svg className="w-5 h-5 ml-4 group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M14 5l7 7m0 0l-7 7m7-7H3"/></svg>
               </button>
            </div>
@@ -189,7 +214,6 @@ const LearningHub = () => {
              className="h-36 w-auto object-contain animate-float" 
              alt="Books"
              onError={(e) => {
-               // Fallback if the image doesn't load
                e.target.style.display = 'none';
                e.target.parentElement.innerHTML = `
                  <div className="w-full h-full flex flex-col items-center justify-center space-y-2 transform rotate-12 opacity-80 scale-125">
@@ -209,23 +233,27 @@ const LearningHub = () => {
            <div className="relative w-40 h-40 shrink-0 mb-6 md:mb-0">
               <svg className="w-full h-full transform -rotate-90">
                  <circle cx="80" cy="80" r="70" stroke="currentColor" strokeWidth="12" fill="transparent" className="text-gray-100" />
-                 <circle cx="80" cy="80" r="70" stroke="currentColor" strokeWidth="12" fill="transparent" className="text-purple-600" strokeDasharray={440} strokeDashoffset={440 - (440 * 40) / 100} strokeLinecap="round" />
+                 <circle cx="80" cy="80" r="70" stroke="currentColor" strokeWidth="12" fill="transparent" className="text-purple-600" strokeDasharray={440} strokeDashoffset={440 - (440 * (courses.reduce((s, c) => s + c.progress, 0) / Math.max(courses.length, 1)) / 100)} strokeLinecap="round" />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                 <span className="text-4xl font-bold text-gray-900 leading-none">40%</span>
-                 <span className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter mt-1">2/5 Done</span>
+                 <span className="text-4xl font-bold text-gray-900 leading-none">{Math.round(courses.reduce((s, c) => s + c.progress, 0) / Math.max(courses.length, 1))}%</span>
+                 <span className="text-[10px] text-gray-400 font-bold uppercase tracking-tighter mt-1">{courses.filter(c => c.progress === 100).length}/{courses.length} Done</span>
               </div>
            </div>
            <div className="md:ml-10 flex-1">
               <h4 className="text-lg font-bold mb-2">My Progress</h4>
-              <p className="text-xs text-gray-400 leading-relaxed mb-6">You're making great progress! Complete 3 more courses to earn your <span className="text-purple-600 font-bold">Care Badge</span>.</p>
+              <p className="text-xs text-gray-400 leading-relaxed mb-6">
+                {courses.filter(c => c.progress === 100).length === courses.length
+                  ? "Congratulations! You've completed all courses."
+                  : `You're making great progress! Complete ${courses.length - courses.filter(c => c.progress === 100).length} more course${courses.length - courses.filter(c => c.progress === 100).length > 1 ? 's' : ''} to earn your Care Badge.`}
+              </p>
               <div className="space-y-3">
-                 {['Welcome to myPSW', 'Navigating the App'].map(item => (
-                   <div key={item} className="flex items-center text-[11px] font-bold text-gray-700 bg-gray-50 p-2.5 rounded-xl border border-gray-100">
+                 {courses.filter(c => c.progress === 100).slice(0, 2).map(c => (
+                   <div key={c.id} className="flex items-center text-[11px] font-bold text-gray-700 bg-gray-50 p-2.5 rounded-xl border border-gray-100">
                       <div className="w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center mr-3 text-white">
                          <svg className="w-2.5 h-2.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"/></svg>
                       </div>
-                      {item}
+                      {c.title}
                    </div>
                  ))}
               </div>
@@ -238,8 +266,7 @@ const LearningHub = () => {
               <div>
                  <p className="text-[10px] font-bold text-purple-300 uppercase tracking-widest mb-1">Total Learning Time</p>
                  <div className="flex items-end gap-3">
-                    <h4 className="text-4xl font-bold">2.4h</h4>
-                    <span className="bg-emerald-500/20 text-emerald-400 text-[10px] font-bold px-2 py-0.5 rounded-lg mb-1.5">+12%</span>
+                    <h4 className="text-4xl font-bold">{courses.reduce((s, c) => s + (c.progress > 0 ? 1 : 0), 0)}h</h4>
                  </div>
               </div>
            </div>
@@ -286,8 +313,12 @@ const LearningHub = () => {
             onClick={() => handleOpenCourse(course)}
             className="bg-white rounded-[2rem] p-6 border border-gray-50 shadow-sm hover:shadow-xl hover:shadow-purple-50 transition-all group cursor-pointer"
           >
-            <div className="mb-6">{course.icon}</div>
-            <p className="text-[10px] text-purple-600 font-bold uppercase tracking-widest mb-1">{course.category}</p>
+            <div className="mb-6">
+              <div className={`w-10 h-10 ${course.icon === 'file-text' ? 'bg-purple-50 text-purple-600' : course.icon === 'medication' ? 'bg-blue-50 text-blue-600' : course.icon === 'calendar' ? 'bg-emerald-50 text-emerald-600' : 'bg-orange-50 text-orange-600'} rounded-xl flex items-center justify-center`}>
+                {COURSE_ICONS[course.icon]}
+              </div>
+            </div>
+            <p className={`text-[10px] font-bold uppercase tracking-widest mb-1 ${categoryColors[course.category] || 'text-purple-600'}`}>{course.category}</p>
             <h4 className="text-lg font-bold text-gray-900 leading-tight mb-6 group-hover:text-purple-600 transition-colors uppercase tracking-tight">{course.title}</h4>
             <p className="text-xs text-gray-400 font-medium mb-10">{course.lessons} lessons · {course.duration}</p>
             <div className="flex items-center text-purple-600 text-xs font-bold">
@@ -346,7 +377,7 @@ const LearningHub = () => {
             linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px)
           `,
           backgroundSize: '20px 20px, 20px 20px, 20px 20px',
-          backgroundColor: '#4F1A8C' // Fallback or base color for the pattern
+          backgroundColor: '#4F1A8C'
         }}
       >
          <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'radial-gradient(circle, #fff 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
@@ -368,9 +399,18 @@ const LearningHub = () => {
                </div>
             </div>
 
-            <button className="bg-white text-[#4F1A8C] px-10 py-4 rounded-2xl font-bold text-sm shadow-xl hover:bg-purple-25 transition-all">
+            <button 
+              onClick={() => {
+                const firstUpcoming = selectedCourse?.curriculum?.findIndex(l => l.status === 'in-progress' || l.status === 'upcoming');
+                if (firstUpcoming !== undefined && firstUpcoming >= 0) {
+                  handleLessonClick(selectedCourse, firstUpcoming, selectedCourse.curriculum[firstUpcoming].status);
+                }
+              }}
+              className="bg-white text-[#4F1A8C] px-10 py-4 rounded-2xl font-bold text-sm shadow-xl hover:bg-purple-25 transition-all"
+            >
                {selectedCourse?.progress > 0 ? 'Resume Lesson' : 'Start Course'}
             </button>
+            {saving && <span className="ml-4 text-white/60 text-xs">Saving...</span>}
          </div>
       </div>
 
@@ -385,9 +425,12 @@ const LearningHub = () => {
               {selectedCourse?.curriculum.map((module, i) => (
                 <div 
                   key={i} 
+                  onClick={() => handleLessonClick(selectedCourse, i, module.status)}
                   className={`p-6 rounded-[2rem] border transition-all flex items-center group cursor-pointer ${
                     module.status === 'in-progress' 
                       ? 'bg-white border-purple-500 shadow-xl shadow-purple-50 scale-[1.02]' 
+                      : module.status === 'completed'
+                      ? 'bg-white border-emerald-200 shadow-sm'
                       : 'bg-white border-gray-50 shadow-sm hover:shadow-md'
                   }`}
                 >

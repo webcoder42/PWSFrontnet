@@ -25,10 +25,10 @@ const Hero = () => {
 
             <div className="flex flex-wrap justify-center lg:justify-start gap-4 items-center pt-2">
               <button className="btn-gradient-pink text-white px-8 py-3.5 rounded-full font-medium text-sm md:text-base">
-                Find A PSW
+                Find a PSW Now
               </button>
               <button className="px-8 py-3.5 rounded-full font-medium border-2 border-white/40 hover:bg-white hover:border-white hover:text-primary-dark duration-300 text-white text-sm md:text-base">
-                Become A PSW
+                How it Works
               </button>
             </div>
 

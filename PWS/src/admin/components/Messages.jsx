@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { fetchAdminConversationsAPI, fetchAdminConversationByKeyAPI } from '../../utils/adminApi';
 
 const getName = (user) => {
@@ -22,14 +23,30 @@ const formatTime = (value) => {
 };
 
 const Messages = () => {
-  const [conversations, setConversations] = useState([]);
   const [selectedKey, setSelectedKey] = useState('');
-  const [currentConversation, setCurrentConversation] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [showMobileChat, setShowMobileChat] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [loadingConversation, setLoadingConversation] = useState(false);
-  const [error, setError] = useState('');
+  const hasAutoSelected = useRef(false);
+
+  const { data: conversations = [], isLoading, error: listError } = useQuery({
+    queryKey: ['admin', 'conversations'],
+    queryFn: () => fetchAdminConversationsAPI().then(r => (Array.isArray(r.data) ? r.data : [])),
+  });
+
+  useEffect(() => {
+    if (conversations.length > 0 && !hasAutoSelected.current) {
+      setSelectedKey(conversations[0].conversationKey);
+      hasAutoSelected.current = true;
+    }
+  }, [conversations]);
+
+  const { data: currentConversation, isLoading: loadingConversation, error: convError } = useQuery({
+    queryKey: ['admin', 'conversation', selectedKey],
+    queryFn: () => fetchAdminConversationByKeyAPI(selectedKey).then(r => r.data || null),
+    enabled: !!selectedKey,
+  });
+
+  const error = listError || convError;
 
   const filteredConversations = useMemo(() => {
     const term = searchTerm.trim().toLowerCase();
@@ -41,45 +58,6 @@ const Messages = () => {
       return clientName.includes(term) || pswName.includes(term) || preview.includes(term);
     });
   }, [searchTerm, conversations]);
-
-  useEffect(() => {
-    const loadConversations = async () => {
-      setLoading(true);
-      setError('');
-      try {
-        const res = await fetchAdminConversationsAPI();
-        const list = Array.isArray(res.data) ? res.data : [];
-        setConversations(list);
-        if (list.length) {
-          openConversation(list[0].conversationKey);
-        }
-      } catch (err) {
-        setError(err?.message || 'Unable to fetch conversations.');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadConversations();
-  }, []);
-
-  const openConversation = async (conversationKey) => {
-    if (!conversationKey) return;
-    setSelectedKey(conversationKey);
-    setShowMobileChat(true);
-    setLoadingConversation(true);
-    setError('');
-
-    try {
-      const res = await fetchAdminConversationByKeyAPI(conversationKey);
-      setCurrentConversation(res.data || null);
-    } catch (err) {
-      setError(err?.message || 'Unable to load conversation details.');
-      setCurrentConversation(null);
-    } finally {
-      setLoadingConversation(false);
-    }
-  };
 
   const currentChat = useMemo(() => {
     if (!currentConversation) return null;
@@ -93,8 +71,14 @@ const Messages = () => {
     };
   }, [currentConversation]);
 
+  const openConversation = (conversationKey) => {
+    if (!conversationKey) return;
+    setSelectedKey(conversationKey);
+    setShowMobileChat(true);
+  };
+
   const renderConversationRows = () => {
-    if (loading) {
+    if (isLoading) {
       return <p className="text-xs text-gray-400 text-center">Loading conversations...</p>;
     }
 
@@ -188,7 +172,7 @@ const Messages = () => {
 
         <div className="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 relative">
           {loadingConversation && <p className="text-xs text-gray-400 text-center">Loading conversation...</p>}
-          {error && !loadingConversation && <p className="text-xs text-rose-500 text-center">{error}</p>}
+          {error && !loadingConversation && <p className="text-xs text-rose-500 text-center">{error instanceof Error ? error.message : 'Unable to load messages.'}</p>}
           {!loadingConversation && !currentConversation && !error && (
             <p className="text-xs text-gray-400 text-center">Select a conversation from the left to inspect the full chat history.</p>
           )}

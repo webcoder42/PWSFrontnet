@@ -12,10 +12,17 @@ interface ProviderCertificateDetailsProps {
 
 const ProviderCertificateDetails: React.FC<ProviderCertificateDetailsProps> = ({ formData, setFormData }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [fileError, setFileError] = React.useState('');
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    setFileError('');
     if (file) {
+      const maxSize = 10 * 1024 * 1024;
+      if (file.size > maxSize) {
+        setFileError(`File too large (${(file.size / (1024 * 1024)).toFixed(1)}MB). Maximum size is 10MB.`);
+        return;
+      }
       const base64DataUrl = await fileToBase64(file);
       setFormData({
         ...formData,
@@ -77,6 +84,10 @@ const ProviderCertificateDetails: React.FC<ProviderCertificateDetailsProps> = ({
             </>
           )}
         </div>
+
+        {fileError && (
+          <p className="text-[13px] text-red-500 font-medium font-dm mt-2 text-center">{fileError}</p>
+        )}
 
         <div className="flex items-center justify-center gap-4 py-2">
           <div className="h-px w-12 sm:w-16 bg-gray-200" />

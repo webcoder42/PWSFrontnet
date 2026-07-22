@@ -29,6 +29,46 @@ const CARE_SERVICES = [
   { id: 'mobility-rehab', label: 'Mobility / Rehabilitation Exercises', icon: MdOutlineDirectionsRun },
 ];
 
+const normalizeKey = (value: string) =>
+  value.trim().toLowerCase().replace(/\s+/g, ' ');
+
+const LEGACY_SERVICE_KEY_TO_ID: Record<string, string> = {
+  bathing: 'respite-care',
+  dressing: 'respite-care',
+  exercise: 'mobility-rehab',
+  general: 'respite-care',
+  hygiene: 'respite-care',
+  housekeeping: 'light-housekeeping',
+  meal: 'laundry',
+  companion: 'companionship',
+  transport: 'transportation',
+  'bath ing & toileting': 'respite-care',
+  'bathing & toileting': 'respite-care',
+  'general care': 'respite-care',
+  'hygiene & grooming': 'respite-care',
+  'meal preparation': 'laundry',
+  'light housekeeping': 'light-housekeeping',
+  'transportation services': 'transportation',
+  'mobility / rehabilitation exercises': 'mobility-rehab',
+};
+
+const resolveServiceId = (value: unknown): string | null => {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  const exactMatch = CARE_SERVICES.find((service) => service.id === trimmed);
+  if (exactMatch) return exactMatch.id;
+
+  const normalized = normalizeKey(trimmed);
+  const labelMatch = CARE_SERVICES.find(
+    (service) => normalizeKey(service.label) === normalized,
+  );
+  if (labelMatch) return labelMatch.id;
+
+  return LEGACY_SERVICE_KEY_TO_ID[normalized] || null;
+};
+
 const CareServicesPage = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const navigate = useNavigate();
@@ -49,7 +89,10 @@ const CareServicesPage = () => {
   useEffect(() => {
     const saved = providerProfile.servicesProvided;
     if (Array.isArray(saved)) {
-      setSelectedServices(saved.map((item) => String(item)));
+      const normalized = saved
+        .map((item) => resolveServiceId(item))
+        .filter((item): item is string => Boolean(item));
+      setSelectedServices(Array.from(new Set(normalized)));
     }
   }, [providerProfile]);
 

@@ -1,41 +1,17 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { clsx } from 'clsx';
-import { HiChevronDown } from 'react-icons/hi';
 import type { ProviderProfileFormData } from '../../../types/profile';
-
-const CountriesData = [
-  { code: '+1', name: 'Canada', flag: '🇨🇦' },
-  { code: '+1', name: 'United States', flag: '🇺🇸' },
-  { code: '+44', name: 'United Kingdom', flag: '🇬🇧' },
-  { code: '+61', name: 'Australia', flag: '🇦🇺' },
-  { code: '+91', name: 'India', flag: '🇮🇳' },
-];
+import PhoneInput from '../../PhoneInput';
+import PhoneVerification from '../../PhoneVerification';
 
 interface ProviderContactInfoProps {
   formData: ProviderProfileFormData;
   setFormData: Dispatch<SetStateAction<ProviderProfileFormData>>;
+  onPhoneVerifiedChange?: (verified: boolean) => void;
 }
 
-const ProviderContactInfo: React.FC<ProviderContactInfoProps> = ({ formData, setFormData }) => {
-  const [isCountryDropdownOpen, setIsCountryDropdownOpen] = useState(false);
-  const [isAltCountryDropdownOpen, setIsAltCountryDropdownOpen] = useState(false);
-  const countryRef = useRef<HTMLDivElement>(null);
-  const altCountryRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (countryRef.current && !countryRef.current.contains(event.target as Node)) {
-        setIsCountryDropdownOpen(false);
-      }
-      if (altCountryRef.current && !altCountryRef.current.contains(event.target as Node)) {
-        setIsAltCountryDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-
+const ProviderContactInfo: React.FC<ProviderContactInfoProps> = ({ formData, setFormData, onPhoneVerifiedChange }) => {
   const toggleNotification = (key: 'smsAlerts' | 'emailAlerts' | 'messageAlerts') => {
     setFormData({ ...formData, [key]: !formData[key] });
   };
@@ -50,43 +26,24 @@ const ProviderContactInfo: React.FC<ProviderContactInfoProps> = ({ formData, set
       <div className="space-y-6">
         <div className="space-y-2">
           <label className="text-[11px] sm:text-[13px] font-bold text-gray-900 font-dm">Phone number</label>
-          <div className="flex gap-3 relative">
-            <div className="relative shrink-0" ref={countryRef}>
-              <div 
-                onClick={() => setIsCountryDropdownOpen(!isCountryDropdownOpen)}
-                className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl md:rounded-2xl px-3 sm:px-4 py-3 sm:py-4 cursor-pointer hover:border-primary/20 duration-300 shadow-sm"
-              >
-                <span className="text-base sm:text-lg">{formData.countryFlag}</span>
-                <span className="text-sm sm:text-base font-medium font-dm text-gray-900">{formData.countryCode}</span>
-                <HiChevronDown className="size-4 sm:size-5 text-gray-400" />
-              </div>
-              {isCountryDropdownOpen && (
-                <div className="absolute top-[calc(100%+8px)] left-0 w-48 sm:w-56 bg-white rounded-xl shadow-logs border border-gray-100 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                  {CountriesData.map((c, i) => (
-                    <div
-                      key={i}
-                      onClick={() => {
-                        setFormData({ ...formData, countryCode: c.code, countryFlag: c.flag });
-                        setIsCountryDropdownOpen(false);
-                      }}
-                      className="flex items-center gap-3 p-3 cursor-pointer hover:bg-primary/5 duration-200 text-sm sm:text-base text-gray-600"
-                    >
-                      <span className="text-base sm:text-lg">{c.flag}</span>
-                      <span className="font-bold">{c.code}</span>
-                      <span className="text-[11px] sm:text-xs text-gray-400 ml-auto truncate">{c.name}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <input
-              type="tel"
-              placeholder="123-456-7890"
-              value={formData.phone || ''}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              className="w-full flex-1 bg-white border border-primary/40 rounded-xl md:rounded-2xl p-3 sm:p-4 outline-none focus:border-primary focus:ring-1 focus:ring-primary duration-300 text-gray-900 font-medium placeholder:text-gray-400 text-sm sm:text-base font-dm shadow-sm"
-            />
-          </div>
+          <PhoneInput
+            value={formData.phone || ''}
+            onChange={(phone) => {
+              setFormData({ ...formData, phone });
+              onPhoneVerifiedChange?.(false);
+            }}
+            countryCode={formData.countryCode}
+            onCountryCodeChange={(code) => {
+              setFormData({ ...formData, countryCode: code });
+              onPhoneVerifiedChange?.(false);
+            }}
+            placeholder="123-456-7890"
+          />
+          <PhoneVerification
+            phone={formData.phone || ''}
+            countryCode={formData.countryCode}
+            onVerified={onPhoneVerifiedChange || (() => {})}
+          />
         </div>
 
         <div className="space-y-2">
@@ -113,43 +70,13 @@ const ProviderContactInfo: React.FC<ProviderContactInfoProps> = ({ formData, set
 
         <div className="space-y-2">
           <label className="text-[11px] sm:text-[13px] font-bold text-gray-900 font-dm">Alternate contact phone (optional)</label>
-          <div className="flex gap-3 relative">
-            <div className="relative shrink-0" ref={altCountryRef}>
-              <div 
-                onClick={() => setIsAltCountryDropdownOpen(!isAltCountryDropdownOpen)}
-                className="flex items-center gap-2 bg-white border border-gray-200 rounded-xl md:rounded-2xl px-3 sm:px-4 py-3 sm:py-4 cursor-pointer hover:border-primary/20 duration-300 shadow-sm"
-              >
-                <span className="text-base sm:text-lg">{formData.altCountryFlag}</span>
-                <span className="text-sm sm:text-base font-medium font-dm text-gray-900">{formData.altCountryCode}</span>
-                <HiChevronDown className="size-4 sm:size-5 text-gray-400" />
-              </div>
-              {isAltCountryDropdownOpen && (
-                <div className="absolute top-[calc(100%+8px)] left-0 w-48 sm:w-56 bg-white rounded-xl shadow-logs border border-gray-100 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                  {CountriesData.map((c, i) => (
-                    <div
-                      key={i}
-                      onClick={() => {
-                        setFormData({ ...formData, altCountryCode: c.code, altCountryFlag: c.flag });
-                        setIsAltCountryDropdownOpen(false);
-                      }}
-                      className="flex items-center gap-3 p-3 cursor-pointer hover:bg-primary/5 duration-200 text-sm sm:text-base text-gray-600"
-                    >
-                      <span className="text-base sm:text-lg">{c.flag}</span>
-                      <span className="font-bold">{c.code}</span>
-                      <span className="text-[11px] sm:text-xs text-gray-400 ml-auto truncate">{c.name}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <input
-              type="tel"
-              placeholder="(416) 000-0000"
-              value={formData.altContactPhone || ''}
-              onChange={(e) => setFormData({ ...formData, altContactPhone: e.target.value })}
-              className="w-full flex-1 bg-white border border-gray-200 rounded-xl md:rounded-2xl p-3 sm:p-4 outline-none focus:border-primary focus:ring-1 focus:ring-primary duration-300 text-gray-900 font-medium placeholder:text-gray-400 text-sm sm:text-base font-dm shadow-sm"
-            />
-          </div>
+          <PhoneInput
+            value={formData.altContactPhone || ''}
+            onChange={(phone) => setFormData({ ...formData, altContactPhone: phone })}
+            countryCode={formData.altCountryCode}
+            onCountryCodeChange={(code) => setFormData({ ...formData, altCountryCode: code })}
+            placeholder="(416) 000-0000"
+          />
         </div>
       </div>
 

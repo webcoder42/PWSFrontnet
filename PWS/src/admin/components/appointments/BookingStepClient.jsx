@@ -1,6 +1,10 @@
 import React from 'react';
 
-const BookingStepClient = ({ clients, selectedClient, onSelect, onBack, onContinue }) => (
+const BookingStepClient = ({ clients, selectedClient, onSelect, onBack, onContinue }) => {
+  const handleSelect = (client) => {
+    onSelect(client.name, client._id || client.id);
+  };
+  return (
   <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 pb-20">
     <div className="mb-12">
       <h2 className="text-4xl font-bold text-gray-900 mb-3 font-serif tracking-tight">Select Client</h2>
@@ -13,7 +17,7 @@ const BookingStepClient = ({ clients, selectedClient, onSelect, onBack, onContin
       {clients.map(client => (
         <div 
           key={client.id} 
-          onClick={() => onSelect(client.name)}
+          onClick={() => handleSelect(client)}
           className={`p-8 rounded-[2.5rem] border transition-all cursor-pointer relative overflow-hidden group ${
             selectedClient === client.name ? 'border-purple-600 bg-purple-50/30' : 'border-gray-50 bg-white hover:border-purple-200'
           }`}
@@ -43,6 +47,7 @@ const BookingStepClient = ({ clients, selectedClient, onSelect, onBack, onContin
       </button>
     </div>
   </div>
-);
+  );
+};
 
 export default BookingStepClient;

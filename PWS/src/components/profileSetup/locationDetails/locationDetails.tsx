@@ -13,6 +13,26 @@ interface LocationDetailsProps {
 const LocationDetails: React.FC<LocationDetailsProps> = ({ formData, setFormData, isFamilyMember }) => {
   const [isLocating, setIsLocating] = useState(false);
 
+  const handleUpdateMap = async () => {
+    const query = [formData.streetAddress, formData.city].filter(Boolean).join(', ');
+    if (!query) return;
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=jsonv2&q=${encodeURIComponent(query)}&limit=1`
+      );
+      const data = await response.json();
+      if (Array.isArray(data) && data.length > 0) {
+        const lat = parseFloat(data[0].lat);
+        const lng = parseFloat(data[0].lon);
+        if (!isNaN(lat) && !isNaN(lng)) {
+          setFormData(prev => ({ ...prev, latitude: lat, longitude: lng }));
+        }
+      }
+    } catch (error) {
+      console.error("Forward geocoding error:", error);
+    }
+  };
+
   const handleCurrentLocation = () => {
     if (!navigator.geolocation) {
       alert('Geolocation is not supported by your browser');
@@ -34,7 +54,9 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ formData, setFormData
               streetAddress: address.road ? `${address.house_number || ''} ${address.road}`.trim() : prev.streetAddress,
               city: address.city || address.town || address.village || prev.city,
               province: address.state || address.province || prev.province,
-              postalCode: address.postcode || prev.postalCode
+              postalCode: address.postcode || prev.postalCode,
+              latitude,
+              longitude
             }));
           }
         } catch (error) {
@@ -92,6 +114,7 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ formData, setFormData
               placeholder={isFamilyMember ? "Enter their street address" : "Enter your street address"}
               value={formData.streetAddress}
               onChange={(e) => setFormData({ ...formData, streetAddress: e.target.value })}
+              onBlur={handleUpdateMap}
               className="mt-2 w-full bg-white border-2 border-primary/10 rounded-xl md:rounded-2xl p-4 sm:p-5 outline-none focus:border-primary duration-300 text-gray-900 font-medium placeholder:text-gray-300 text-sm sm:text-base"
             />
           </div>
@@ -115,6 +138,7 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ formData, setFormData
                 placeholder="Toronto"
                 value={formData.city}
                 onChange={(e) => setFormData({ ...formData, city: e.target.value })}
+                onBlur={handleUpdateMap}
                 className="mt-2 w-full bg-white border-2 border-primary/10 rounded-xl md:rounded-2xl p-4 sm:p-5 outline-none focus:border-primary duration-300 text-gray-900 font-medium placeholder:text-gray-300 text-sm sm:text-base"
               />
             </div>
@@ -125,6 +149,7 @@ const LocationDetails: React.FC<LocationDetailsProps> = ({ formData, setFormData
                 placeholder="ON"
                 value={formData.province}
                 onChange={(e) => setFormData({ ...formData, province: e.target.value })}
+                onBlur={handleUpdateMap}
                 className="mt-2 w-full bg-white border-2 border-primary/10 rounded-xl md:rounded-2xl p-4 sm:p-5 outline-none focus:border-primary duration-300 text-gray-900 font-medium placeholder:text-gray-300 text-sm sm:text-base"
               />
             </div>

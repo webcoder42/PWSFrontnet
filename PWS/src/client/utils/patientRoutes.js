@@ -1,4 +1,4 @@
-/** Maps patient sidebar labels to URL path segments (under /patient). */
+/** Maps patient sidebar labels to URL path segments. */
 export const PATIENT_TABS = {
   Dashboard: '',
   Appointments: 'appointments',
@@ -20,8 +20,7 @@ export function segmentToTab(segment) {
   return 'Dashboard';
 }
 
-/** Resolve active sidebar tab from the current pathname. */
-export function getActiveTabFromPath(pathname, basePrefix = '/patient') {
+export function getActiveTabFromPath(pathname, basePrefix = '') {
   const base = (basePrefix || '').replace(/\/$/, '');
   let path = (pathname || '/').replace(/\/$/, '') || '/';
 
@@ -33,8 +32,7 @@ export function getActiveTabFromPath(pathname, basePrefix = '/patient') {
   return segmentToTab(segment);
 }
 
-/** Build absolute path for a patient tab. */
-export function getNavigatePath(tab, basePrefix = '/patient') {
+export function getNavigatePath(tab, basePrefix = '') {
   const segment = tabToSegment(tab);
   const base = (basePrefix || '').replace(/\/$/, '');
   if (!segment) return base || '/';

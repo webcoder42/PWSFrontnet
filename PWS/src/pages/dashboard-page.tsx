@@ -1,5 +1,6 @@
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { HiOutlineClock, HiOutlineCurrencyDollar, HiOutlineUsers, HiChevronRight } from 'react-icons/hi';
 import { FaStar } from "react-icons/fa";
 
@@ -31,52 +32,30 @@ type ProfileStats = {
 
 const DashboardPage = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [appointments, setAppointments] = useState<Record<string, unknown>[]>([]);
-  const [profileStats, setProfileStats] = useState<ProfileStats | null>(null);
-  const [serverEarnings, setServerEarnings] = useState<{
-    today: number;
-    week: number;
-    month: number;
-  } | null>(null);
-  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { rawUser, profile } = useUser();
+  const pswId = getLoggedInUserId(rawUser, profile);
 
-  const fetchAppointments = useCallback(async () => {
-    const pswId = getLoggedInUserId(rawUser, profile);
-    if (!pswId) {
-      setLoading(false);
-      return;
-    }
+  const { data: appointments = [], isLoading } = useQuery({
+    queryKey: ['appointments', pswId],
+    queryFn: () => getAppointmentsByPswAPI(pswId!).then(r => r.data || []),
+    enabled: !!pswId,
+  });
 
-    try {
-      const [apptRes, statsRes] = await Promise.all([
-        getAppointmentsByPswAPI(pswId),
-        getPswDashboardStatsAPI(pswId).catch(() => null),
-      ]);
-      if (apptRes.success) {
-        setAppointments(apptRes.data || []);
-      }
-      if (statsRes?.success && statsRes.data) {
-        if (statsRes.data.profileStats) {
-          setProfileStats(statsRes.data.profileStats as ProfileStats);
-        }
-        if (statsRes.data.earnings) {
-          setServerEarnings(statsRes.data.earnings);
-        }
-      }
-    } catch (err) {
-      console.error('Error fetching PSW appointments:', err);
-    } finally {
-      setLoading(false);
-    }
-  }, [rawUser, profile]);
+  const { data: dashboardStats } = useQuery({
+    queryKey: ['dashboard-stats', pswId],
+    queryFn: () => getPswDashboardStatsAPI(pswId!).then(r => r.data || null),
+    enabled: !!pswId,
+  });
 
-  useEffect(() => {
-    void fetchAppointments();
-  }, [fetchAppointments]);
+  const profileStats = (dashboardStats?.profileStats as ProfileStats) || null;
+  const serverEarnings = (dashboardStats?.earnings as { today: number; week: number; month: number } | null) || null;
 
-  useLiveDataRefresh(fetchAppointments, { watchDashboardStats: true });
+  useLiveDataRefresh(() => {
+    queryClient.invalidateQueries({ queryKey: ['appointments', pswId] });
+    queryClient.invalidateQueries({ queryKey: ['dashboard-stats', pswId] });
+  }, { watchDashboardStats: true });
 
   const upcomingForDashboard = useMemo(() => {
     const today = new Date();
@@ -140,7 +119,9 @@ const DashboardPage = () => {
     const now = new Date();
     const monthAppts = appointments.filter((appt) => {
       const d = parseAppointmentDate(appt as { appointmentDate?: string; date?: string });
-      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+      const status = String(appt.status || '').toLowerCase();
+      const paymentStatus = String((appt.payment as Record<string, unknown>)?.status || '').toLowerCase();
+      return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear() && status === 'completed' && paymentStatus === 'paid';
     });
     const hours = monthAppts.reduce(
       (sum, appt) => sum + parseDurationHours(String(appt.duration || '')),
@@ -157,7 +138,7 @@ const DashboardPage = () => {
 
     return {
       hours: Math.round(hours),
-      earnings: `$${Math.round(earnings).toLocaleString()}`,
+      earnings: `$${earnings.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       activePatients,
     };
   }, [appointments]);
@@ -239,7 +220,7 @@ const DashboardPage = () => {
                   </button>
                 </div>
                 <div className="space-y-4">
-                  {loading ? (
+                  {isLoading ? (
                     <div className="py-10 text-center">
                       <p className="text-gray-400 font-dm font-medium">Loading appointments...</p>
                     </div>
@@ -280,7 +261,7 @@ const DashboardPage = () => {
               <div className="bg-white rounded-3xl p-6 lg:p-10 border border-gray-100 shadow-logs hover:shadow-xl hover:shadow-black/5 duration-500">
                 <h3 className="text-xl lg:text-2xl font-bold text-gray-900 font-playfair mb-6 lg:mb-4">My Clients</h3>
                 <div className="space-y-2 lg:space-y-6">
-                  {loading ? (
+                  {isLoading ? (
                     <p className="text-gray-400 font-dm text-sm">Loading clients...</p>
                   ) : clientsFromAppointments.length > 0 ? (
                     clientsFromAppointments.map((client) => (
@@ -343,3 +324,4 @@ const DashboardPage = () => {
 };
 
 export default DashboardPage;
+

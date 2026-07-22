@@ -1,4 +1,14 @@
 import { FaUserNurse, FaHandsHelping, FaHome, FaUtensils, FaBroom, FaHeartbeat, FaArrowRight } from 'react-icons/fa';
+import { Link } from 'react-router-dom';
+
+const serviceLinks: Record<string, string> = {
+  'Personal Care': '/services/personal-care',
+  'Respite Care': '/services/respite-care',
+  'In-Home Nursing': '/services/in-home-nursing',
+  'Companionship': '/services/companionship',
+  'Meal Preparation': '/services/meal-preparation',
+  'Household Support': '/services/household-support',
+};
 
 const services = [
   {
@@ -55,7 +65,11 @@ const Services = () => {
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
             {services.map((service, index) => (
-              <div key={index} className="bg-white p-8 rounded-3xl shadow-sm hover:shadow-xl duration-300 group border border-transparent hover:border-primary/10">
+              <Link
+                key={index}
+                to={serviceLinks[service.title]}
+                className="block bg-white p-8 rounded-3xl shadow-sm hover:shadow-xl duration-300 group border border-transparent hover:border-primary/10"
+              >
                 <div className="size-14 rounded-xl bg-primary/10 flex items-center justify-center text-primary mb-6 group-hover:scale-110 group-hover:bg-primary group-hover:text-white duration-300">
                   {service.icon}
                 </div>
@@ -63,10 +77,10 @@ const Services = () => {
                 <p className="text-gray-600 mb-6 leading-relaxed">
                   {service.description}
                 </p>
-                <a href="#" className="inline-flex items-center gap-2 text-primary font-bold text-sm hover:text-accent duration-300">
-                  Learn More <FaArrowRight />
-                </a>
-              </div>
+                <span className="inline-flex items-center gap-2 text-primary font-bold text-sm hover:text-accent duration-300">
+                  Explore This Service <FaArrowRight />
+                </span>
+              </Link>
             ))}
           </div>
         </div>

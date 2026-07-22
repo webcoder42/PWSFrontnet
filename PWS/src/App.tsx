@@ -1,52 +1,69 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Outlet } from 'react-router-dom';
 
-import LandingPage from './pages/landing-page-page';
-import LoginPage from './pages/login-page';
-import SignupPage from './pages/signup-page';
-import OnboardingPage from './pages/onboarding-page';
-import UserTypePage from './pages/user-type-page';
-import AccountSetupPage from './pages/account-setup-page';
-import ProfileSetupPage from './pages/profile-setup-page';
-import FamilyProfileSetupPage from './pages/family-profile-setup-page';
-import ProviderProfileSetupPage from './pages/provider-profile-setup-page';
-import SetupCompletePage from './pages/setup-complete-page';
-
-import DashboardPage from './pages/dashboard-page';
-import CareRequestsPage from './pages/care-requests-page';
-import AvailabilityPage from './pages/availability-page';
-import ClientsPage from './pages/clients-page';
-import MessagesPage from './pages/messages-page';
-
-import SettingsPage from './pages/settings-page';
-import SwitchAccountsPage from './pages/switch-accounts-page';
-import ProfileSettingsPage from './pages/profile-settings-page';
-import NotificationSettingsPage from './pages/notification-settings-page';
-import BillingPaymentPage from './pages/billing-payment-page';
-import PasswordSecurityPage from './pages/password-security-page';
-import DataSettingsPage from './pages/data-settings-page';
-import AboutSettingsPage from './pages/about-settings-page';
-
-import PreferencesPage from './pages/preferences-page';
-import ServiceAreaPage from './pages/service-area-page';
-import CareExpertisePage from './pages/care-expertise-page';
-import CareServicesPage from './pages/care-services-page';
-import PatientGenderPreferencesPage from './pages/patient-gender-preferences-page';
-import LanguageSettingsPage from './pages/language-settings-page';
-import CertificationsQualificationsPage from './pages/certifications-qualifications-page';
-
 import ProtectedRoute from './components/ProtectedRoute';
-
 import AdminRouteShell from './components/AdminRouteShell';
-// @ts-ignore
-import PatientApp from './client/App.jsx';
-import LearningHubPage from './pages/learning-hub-page';
+import { UserProvider as ClientUserProvider } from './client/context/UserContext.jsx';
+import { NotificationCenterProvider as ClientNotificationCenterProvider } from './client/context/NotificationCenterContext.jsx';
+
+const LandingPage = lazy(() => import('./pages/landing-page-page'));
+const LoginPage = lazy(() => import('./pages/login-page'));
+const SignupPage = lazy(() => import('./pages/signup-page'));
+const EmailVerificationPage = lazy(() => import('./pages/email-verification-page'));
+const ForgotPasswordPage = lazy(() => import('./pages/forgot-password-page'));
+const ResetPasswordPage = lazy(() => import('./pages/reset-password-page'));
+const TwoFactorRecoveryPage = lazy(() => import('./pages/two-factor-recovery-page'));
+const OnboardingPage = lazy(() => import('./pages/onboarding-page'));
+const UserTypePage = lazy(() => import('./pages/user-type-page'));
+const AccountSetupPage = lazy(() => import('./pages/account-setup-page'));
+const ProfileSetupPage = lazy(() => import('./pages/profile-setup-page'));
+const FamilyProfileSetupPage = lazy(() => import('./pages/family-profile-setup-page'));
+const ProviderProfileSetupPage = lazy(() => import('./pages/provider-profile-setup-page'));
+const SetupCompletePage = lazy(() => import('./pages/setup-complete-page'));
+
+const DashboardPage = lazy(() => import('./pages/dashboard-page'));
+const CareRequestsPage = lazy(() => import('./pages/care-requests-page'));
+const AvailabilityPage = lazy(() => import('./pages/availability-page'));
+const ClientsPage = lazy(() => import('./pages/clients-page'));
+const MessagesPage = lazy(() => import('./pages/messages-page'));
+
+const SettingsPage = lazy(() => import('./pages/settings-page'));
+const SwitchAccountsPage = lazy(() => import('./pages/switch-accounts-page'));
+const ProfileSettingsPage = lazy(() => import('./pages/profile-settings-page'));
+const NotificationSettingsPage = lazy(() => import('./pages/notification-settings-page'));
+const BillingPaymentPage = lazy(() => import('./pages/billing-payment-page'));
+const PasswordSecurityPage = lazy(() => import('./pages/password-security-page'));
+const DataSettingsPage = lazy(() => import('./pages/data-settings-page'));
+const AboutSettingsPage = lazy(() => import('./pages/about-settings-page'));
+
+const PreferencesPage = lazy(() => import('./pages/preferences-page'));
+const ServiceAreaPage = lazy(() => import('./pages/service-area-page'));
+const CareExpertisePage = lazy(() => import('./pages/care-expertise-page'));
+const CareServicesPage = lazy(() => import('./pages/care-services-page'));
+const PatientGenderPreferencesPage = lazy(() => import('./pages/patient-gender-preferences-page'));
+const LanguageSettingsPage = lazy(() => import('./pages/language-settings-page'));
+const CertificationsQualificationsPage = lazy(() => import('./pages/certifications-qualifications-page'));
+
+const PatientApp = lazy(() => import('./client/App.jsx'));
+const LearningHubPage = lazy(() => import('./pages/learning-hub-page'));
+const PrivacyPolicy = lazy(() => import('./pages/privacy-policy-page'));
+const TermsOfService = lazy(() => import('./pages/terms-of-service-page'));
 
 function App() {
   return (
+    <Suspense fallback={
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="w-10 h-10 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    }>
     <Routes>
       <Route index element={<LandingPage />} />
       <Route path="/login" element={<LoginPage />} />
       <Route path="/signup" element={<SignupPage />} />
+      <Route path="/verify-email" element={<EmailVerificationPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/two-factor-recovery" element={<TwoFactorRecoveryPage />} />
 
       {/* Admin Protected Routes */}
       <Route path="/admin/*" element={
@@ -57,10 +74,17 @@ function App() {
 
       {/* Patient / Recipient Protected Routes */}
       <Route path="/patient/*" element={
-        <ProtectedRoute allowedRoles={['looking_for_care']}>
-          <PatientApp />
+        <ProtectedRoute allowedRoles={['looking_for_care', 'user']}>
+          <ClientUserProvider>
+            <ClientNotificationCenterProvider>
+              <PatientApp />
+            </ClientNotificationCenterProvider>
+          </ClientUserProvider>
         </ProtectedRoute>
       } />
+
+      <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+      <Route path="/terms-of-service" element={<TermsOfService />} />
 
       {/* Onboarding Routes */}
       <Route path="/onboarding" element={<OnboardingPage />} />
@@ -73,7 +97,7 @@ function App() {
 
       {/* Care Provider Protected Routes */}
       <Route element={
-        <ProtectedRoute allowedRoles={['care_provider']}>
+        <ProtectedRoute allowedRoles={['care_provider', 'user']}>
           <Outlet />
         </ProtectedRoute>
       }>
@@ -106,8 +130,8 @@ function App() {
         </Route>
       </Route>
     </Routes>
+    </Suspense>
   );
 }
-
 
 export default App;

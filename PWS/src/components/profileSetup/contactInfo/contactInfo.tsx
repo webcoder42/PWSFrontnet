@@ -1,35 +1,19 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React from 'react';
 import type { Dispatch, SetStateAction } from 'react';
 import { clsx } from 'clsx';
-import { HiChevronDown, HiCheck, HiDeviceMobile, HiMail } from 'react-icons/hi';
+import { HiDeviceMobile, HiMail } from 'react-icons/hi';
 import type { ProfileFormData } from '../../../types/profile';
-const CountriesData = [
-  { code: '+1', name: 'Canada', flag: '🇨🇦' },
-  { code: '+1', name: 'United States', flag: '🇺🇸' },
-  { code: '+44', name: 'United Kingdom', flag: '🇬🇧' },
-  { code: '+61', name: 'Australia', flag: '🇦🇺' },
-  { code: '+91', name: 'India', flag: '🇮🇳' },
-];
+import PhoneInput from '../../PhoneInput';
+import PhoneVerification from '../../PhoneVerification';
 
 interface ContactInfoProps {
   formData: ProfileFormData;
   setFormData: Dispatch<SetStateAction<ProfileFormData>>;
   isFamilyMember?: boolean;
+  onPhoneVerifiedChange?: (verified: boolean) => void;
 }
 
-const ContactInfo: React.FC<ContactInfoProps> = ({ formData, setFormData, isFamilyMember }) => {
-  const [isCountryDropdownOpen, setIsCountryDropdownOpen] = useState(false);
-  const countryRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (countryRef.current && !countryRef.current.contains(event.target as Node)) {
-        setIsCountryDropdownOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
+const ContactInfo: React.FC<ContactInfoProps> = ({ formData, setFormData, isFamilyMember, onPhoneVerifiedChange }) => {
 
   return (
     <div className="space-y-10">
@@ -41,45 +25,26 @@ const ContactInfo: React.FC<ContactInfoProps> = ({ formData, setFormData, isFami
       <div className="space-y-8">
         <div className="space-y-3">
           <label className="text-xs sm:text-sm font-dm font-bold text-gray-900 uppercase tracking-widest ml-1 opacity-60">Phone number</label>
-          <div className="mt-2 flex gap-4 relative">
-            <div className="relative shrink-0" ref={countryRef}>
-              <div
-                onClick={() => setIsCountryDropdownOpen(!isCountryDropdownOpen)}
-                className="w-24 sm:w-32 h-full bg-white border-2 border-primary/10 rounded-xl md:rounded-2xl flex items-center justify-between px-4 sm:px-5 cursor-pointer hover:border-primary/20 duration-300"
-              >
-                <span className="text-sm sm:text-base">{CountriesData.find(c => c.code === formData.countryCode)?.flag || '🇨🇦'} {formData.countryCode}</span>
-                <HiChevronDown className="text-gray-400" />
-              </div>
-              {isCountryDropdownOpen && (
-                <div className="absolute top-[calc(100%+8px)] left-0 w-full sm:w-56 bg-white rounded-xl shadow-logs border border-gray-100 overflow-hidden z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-                  {CountriesData.map((c, i) => (
-                    <div
-                      key={i}
-                      onClick={() => {
-                        setFormData({ ...formData, countryCode: c.code, countryFlag: c.flag });
-                        setIsCountryDropdownOpen(false);
-                      }}
-                      className="flex items-center gap-3 p-3.5 cursor-pointer hover:bg-primary/5 duration-200 text-sm sm:text-base text-gray-600"
-                    >
-                      <span className="text-lg">{c.flag}</span>
-                      <span className="font-bold">{c.code}</span>
-                      <span className="text-xs text-gray-400 ml-auto truncate">{c.name}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-            <input
-              type="tel"
-              placeholder="123-456-7890"
+          <div className="mt-2">
+            <PhoneInput
               value={formData.phone}
-              onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              className="flex-1 bg-white border-2 border-primary/10 rounded-xl md:rounded-2xl p-4 sm:p-5 outline-none focus:border-primary duration-300 text-gray-900 font-medium placeholder:text-gray-300 text-sm sm:text-base shadow-sm"
+              onChange={(phone) => {
+                setFormData({ ...formData, phone });
+                onPhoneVerifiedChange?.(false);
+              }}
+              countryCode={formData.countryCode}
+              onCountryCodeChange={(code) => {
+                setFormData({ ...formData, countryCode: code });
+                onPhoneVerifiedChange?.(false);
+              }}
             />
           </div>
-          <div className="flex items-center gap-2 text-green-600 bg-green-50 w-fit px-3 py-1.5 rounded-full text-[10px] sm:text-xs font-bold font-dm ml-1">
-            <HiCheck className="size-4" />
-            Verified via SMS
+          <div className="ml-1">
+            <PhoneVerification
+              phone={formData.phone}
+              countryCode={formData.countryCode}
+              onVerified={onPhoneVerifiedChange || (() => {})}
+            />
           </div>
         </div>
 

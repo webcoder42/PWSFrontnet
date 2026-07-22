@@ -1,0 +1,1 @@
+var e=`pws_pending_chat`;function t(){try{let t=sessionStorage.getItem(e);if(!t)return null;sessionStorage.removeItem(e);let n=JSON.parse(t);return n?.otherUserId?n:null}catch{return sessionStorage.removeItem(e),null}}export{t as n,e as t};

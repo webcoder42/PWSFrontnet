@@ -1,8 +1,67 @@
 import React, { useState } from 'react';
 import Breadcrumb from './Breadcrumb';
+import { useUser } from '../../context/UserContext';
+import { API_BASE_URL } from '../../utils/api';
 
 const SecurityView = ({ view, setView }) => {
+  const { user, updateUser } = useUser();
   const [activeSecurityTab, setActiveSecurityTab] = useState('change-password');
+  
+  const [oldPassword, setOldPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleChangePassword = async () => {
+    setError('');
+    setSuccess('');
+
+    // Step 1: Frontend validations
+    if (!oldPassword || !newPassword || !confirmPassword) {
+      setError('Please fill in all fields.');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setError('New passwords do not match.');
+      return;
+    }
+    if (newPassword.length < 8) {
+      setError('Password must be at least 8 characters long.');
+      return;
+    }
+
+    setIsLoading(true);
+    try {
+      // Call backend API — backend verifies old password using bcrypt
+      const response = await fetch(`${API_BASE_URL}/auth/change-password/${user._id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ oldPassword, newPassword })
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        // Update context so future sessions reflect new password
+        updateUser({ password: newPassword });
+        setSuccess('Password changed successfully! Your account is now secure.');
+        setOldPassword('');
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        // Backend returned error (e.g. wrong old password)
+        setError(data.message || 'Failed to change password.');
+      }
+    } catch (err) {
+      // Network/server error — do NOT update password
+      setError('Cannot connect to server. Please make sure the server is running and try again.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
   <div className="animate-fade-in max-w-6xl mx-auto pb-20">
     <Breadcrumb current="Password & Security" setView={setView} />
@@ -28,7 +87,20 @@ const SecurityView = ({ view, setView }) => {
           <div className="bg-white rounded-[2.5rem] p-12 border border-gray-50 shadow-sm animate-scale-in">
             <h3 className="text-3xl font-bold text-gray-900 mb-10 font-serif">Change password</h3>
             <div className="bg-amber-50 border-l-4 border-amber-400 p-6 rounded-r-2xl flex items-start gap-5 mb-10"><div className="text-amber-600 pt-0.5"><svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg></div><p className="text-xs text-amber-900 font-medium leading-relaxed">You’ll be logged out of all sessions except this one to protect your account if anyone is trying to gain access.</p></div>
-            <div className="space-y-8"><p className="text-xs text-gray-400 max-w-md leading-relaxed">Your password must be at least 8 characters and should include a combination of numbers, letters and special characters (!@#%).</p><div className="space-y-6 max-w-lg"><div className="relative"><input type="password" placeholder="Current password" className="w-full px-6 py-4 bg-gray-25 border border-gray-100 rounded-2xl text-sm focus:ring-1 focus:ring-purple-200 outline-none transition-all" /><button className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></button></div><div className="relative"><input type="password" placeholder="New password" className="w-full px-6 py-4 bg-gray-25 border border-gray-100 rounded-2xl text-sm focus:ring-1 focus:ring-purple-200 outline-none transition-all" /><button className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></button></div><div className="relative"><input type="password" placeholder="Re-type new password" className="w-full px-6 py-4 bg-gray-25 border border-gray-100 rounded-2xl text-sm focus:ring-1 focus:ring-purple-200 outline-none transition-all" /><button className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></button></div></div><button className="text-xs font-bold text-purple-600 hover:text-purple-800 transition-colors">Forgot your password?</button><div className="pt-4"><button className="w-full max-w-lg py-5 bg-gradient-to-r from-purple-700 to-purple-500 text-white rounded-[2rem] font-bold text-sm shadow-xl shadow-purple-200 hover:-translate-y-1 transition-all">Change password</button></div></div>
+            <div className="space-y-8">
+              <p className="text-xs text-gray-400 max-w-md leading-relaxed">Your password must be at least 8 characters and should include a combination of numbers, letters and special characters (!@#%).</p>
+              
+              {error && <div className="p-4 bg-red-50 text-red-600 border border-red-100 rounded-xl text-sm font-medium">{error}</div>}
+              {success && <div className="p-4 bg-emerald-50 text-emerald-600 border border-emerald-100 rounded-xl text-sm font-medium">{success}</div>}
+
+              <div className="space-y-6 max-w-lg">
+                <div className="relative"><input type="password" value={oldPassword} onChange={(e) => setOldPassword(e.target.value)} placeholder="Current password" className="w-full px-6 py-4 bg-gray-25 border border-gray-100 rounded-2xl text-sm focus:ring-1 focus:ring-purple-200 outline-none transition-all" /><button className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></button></div>
+                <div className="relative"><input type="password" value={newPassword} onChange={(e) => setNewPassword(e.target.value)} placeholder="New password" className="w-full px-6 py-4 bg-gray-25 border border-gray-100 rounded-2xl text-sm focus:ring-1 focus:ring-purple-200 outline-none transition-all" /><button className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></button></div>
+                <div className="relative"><input type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Re-type new password" className="w-full px-6 py-4 bg-gray-25 border border-gray-100 rounded-2xl text-sm focus:ring-1 focus:ring-purple-200 outline-none transition-all" /><button className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/></svg></button></div>
+              </div>
+              <button className="text-xs font-bold text-purple-600 hover:text-purple-800 transition-colors">Forgot your password?</button>
+              <div className="pt-4"><button onClick={handleChangePassword} disabled={isLoading} className="w-full max-w-lg py-5 bg-gradient-to-r from-purple-700 to-purple-500 text-white rounded-[2rem] font-bold text-sm shadow-xl shadow-purple-200 hover:-translate-y-1 transition-all disabled:opacity-50 disabled:hover:translate-y-0">{isLoading ? 'Changing password...' : 'Change password'}</button></div>
+            </div>
           </div>
         ) : (
           <div className="bg-white rounded-[2.5rem] p-12 border border-gray-50 shadow-sm animate-scale-in flex flex-col min-h-[500px]">

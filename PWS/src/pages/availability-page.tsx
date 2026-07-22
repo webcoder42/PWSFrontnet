@@ -1,13 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { clsx } from 'clsx';
 import {
   HiCheck,
   HiOutlineMinus,
-  HiOutlineCalendar,
-  HiOutlinePlus,
   HiOutlineChevronDown,
-  HiOutlineX,
   HiCheckCircle,
 } from 'react-icons/hi';
 
@@ -15,7 +12,7 @@ import DashboardSidebar from '../components/dashboard/dashboardSidebar/dashboard
 import DashboardHeader from '../components/dashboard/dashboardHeader/dashboardHeader';
 import SettingsHeader from '../components/dashboard/settings/settingsHeader/settingsHeader';
 import { useUser } from '../context/UserContext';
-import { updateUserProfileAPI } from '../utils/api';
+import { getUserProfileAPI, updateUserProfileAPI } from '../utils/api';
 
 const DaysOfWeek = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
 const TimeBlocks = [
@@ -23,12 +20,6 @@ const TimeBlocks = [
   { id: 'Afternoon', time: '12pm–6pm' },
   { id: 'Evening', time: '6pm–12am' }
 ];
-
-interface TimeOffEntry {
-  startDate: string;
-  endDate?: string;
-  title: string;
-}
 
 interface BookingSettingsState {
   minimumNoticeHours: number;
@@ -55,38 +46,6 @@ const formatNoticeLabel = (hours: number) => `${hours} hours${hours === 24 ? ' (
 const parseNoticeLabelToHours = (value: string) => {
   const parsed = Number.parseInt(value, 10);
   return Number.isNaN(parsed) ? 24 : parsed;
-};
-
-const formatDate = (dateString?: string) => {
-  if (!dateString) return '';
-  const date = new Date(dateString);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-};
-
-const buildTimeOffLabel = (item: TimeOffEntry) => {
-  const start = formatDate(item.startDate);
-  const end = formatDate(item.endDate);
-  return end && end !== start ? `${start} – ${end}` : start;
-};
-
-const normalizeTimeOffFromBackend = (timeOff: any): TimeOffEntry[] => {
-  if (!Array.isArray(timeOff)) return [];
-  return timeOff
-    .map((entry) => (entry && typeof entry === 'object' ? entry : null))
-    .filter(Boolean)
-    .map((entry: any) => {
-      const startDate = entry.startDate ? new Date(entry.startDate) : null;
-      const endDate = entry.endDate ? new Date(entry.endDate) : null;
-      const title = typeof entry.title === 'string' ? entry.title.trim() : '';
-      if (!startDate || Number.isNaN(startDate.getTime()) || !title) return null;
-      return {
-        startDate: startDate.toISOString(),
-        ...(endDate && !Number.isNaN(endDate.getTime()) ? { endDate: endDate.toISOString() } : {}),
-        title
-      } as TimeOffEntry;
-    })
-    .filter(Boolean) as TimeOffEntry[];
 };
 
 const mapBackendToUiAvailability = (backendAvailability: any) => {
@@ -141,16 +100,12 @@ const AvailabilityPage = () => {
   const [minNotice, setMinNotice] = useState(formatNoticeLabel(24));
 
   const [availability, setAvailability] = useState<Record<string, Record<string, boolean>>>(defaultAvailability);
-  const [timeOff, setTimeOff] = useState<TimeOffEntry[]>([]);
 
-  useEffect(() => {
-    const providerProfile = (rawUser as any)?.providerProfile || {};
+  const applyProviderProfile = useCallback((providerProfile: any) => {
     const providerAvailability = providerProfile?.availability;
     if (providerAvailability && typeof providerAvailability === 'object') {
       setAvailability(mapBackendToUiAvailability(providerAvailability));
     }
-
-    setTimeOff(normalizeTimeOffFromBackend(providerProfile?.timeOff));
 
     const settings = providerProfile?.bookingSettings || {};
     const minimumNoticeHours = Number(settings.minimumNoticeHours);
@@ -164,7 +119,35 @@ const AvailabilityPage = () => {
 
     setBookingSettings(nextBookingSettings);
     setMinNotice(formatNoticeLabel(nextBookingSettings.minimumNoticeHours));
-  }, [rawUser]);
+  }, []);
+
+  useEffect(() => {
+    const providerProfile = (rawUser as any)?.providerProfile;
+    if (providerProfile) {
+      applyProviderProfile(providerProfile);
+    }
+  }, [rawUser, applyProviderProfile]);
+
+  useEffect(() => {
+    const userId = (rawUser as any)?._id || (rawUser as any)?.id;
+    const hasProfile = !!(rawUser as any)?.providerProfile;
+    if (!userId || hasProfile) return;
+
+    (async () => {
+      try {
+        const res = await getUserProfileAPI(userId);
+        if (res?.data) {
+          const pp = (res.data as any)?.providerProfile;
+          if (pp) {
+            setUser(res.data as any);
+            applyProviderProfile(pp);
+          }
+        }
+      } catch {
+        // API fetch failed silently - user will see defaults until refreshFromServer succeeds
+      }
+    })();
+  }, [rawUser, applyProviderProfile, setUser]);
 
   const activeDays = DaysOfWeek.filter(day => {
     const dayData = availability[day];
@@ -189,9 +172,6 @@ const AvailabilityPage = () => {
     });
     return total;
   };
-
-  const [isTimeOffModalOpen, setIsTimeOffModalOpen] = useState(false);
-  const [newTimeOff, setNewTimeOff] = useState({ startDate: '', endDate: '', title: '' });
 
   const toggleSlot = (day: string, slot: string) => {
     setAvailability(prev => ({
@@ -223,14 +203,6 @@ const AvailabilityPage = () => {
     try {
       setIsSaving(true);
       const backendAvailability = mapUiToBackendAvailability(availability);
-      const normalizedTimeOff = timeOff
-        .map((item) => ({
-          startDate: item.startDate,
-          ...(item.endDate ? { endDate: item.endDate } : {}),
-          title: item.title.trim()
-        }))
-        .filter((item) => item.title && !Number.isNaN(new Date(item.startDate).getTime()));
-
       const normalizedBookingSettings = {
         minimumNoticeHours: parseNoticeLabelToHours(minNotice),
         maxBookingAdvanceDays: bookingSettings.maxBookingAdvanceDays,
@@ -240,7 +212,6 @@ const AvailabilityPage = () => {
       const response = await updateUserProfileAPI(userId, {
         providerProfile: {
           availability: backendAvailability,
-          timeOff: normalizedTimeOff,
           bookingSettings: normalizedBookingSettings
         }
       });
@@ -252,36 +223,12 @@ const AvailabilityPage = () => {
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 5000);
     } catch (error) {
-      console.error(error);
-      alert('Could not save availability. Please try again.');
+      const message = error instanceof Error ? error.message : 'Unknown error';
+      console.error('Save failed:', message);
+      alert('Could not save: ' + message);
     } finally {
       setIsSaving(false);
     }
-  };
-
-  const handleAddTimeOff = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newTimeOff.startDate || !newTimeOff.title) return;
-
-    const startDate = new Date(newTimeOff.startDate);
-    const endDate = newTimeOff.endDate ? new Date(newTimeOff.endDate) : null;
-    if (Number.isNaN(startDate.getTime())) return;
-    if (endDate && Number.isNaN(endDate.getTime())) return;
-
-    setTimeOff(prev => [
-      ...prev,
-      {
-        startDate: startDate.toISOString(),
-        ...(endDate ? { endDate: endDate.toISOString() } : {}),
-        title: newTimeOff.title.trim()
-      }
-    ]);
-    setNewTimeOff({ startDate: '', endDate: '', title: '' });
-    setIsTimeOffModalOpen(false);
-  };
-
-  const deleteTimeOff = (indexToDelete: number) => {
-    setTimeOff(prev => prev.filter((_, index) => index !== indexToDelete));
   };
 
   return (
@@ -296,7 +243,7 @@ const AvailabilityPage = () => {
 
             <SettingsHeader
               title="Schedule & Availability"
-              description="Set your working hours and manage your personal time off."
+              description="Set your working hours and booking preferences."
               breadcrumbs={[
                 { label: 'Settings', to: '/settings' },
                 { label: 'Preferences', to: '/settings/preferences' },
@@ -485,53 +432,6 @@ const AvailabilityPage = () => {
                     </div>
                   </div>
 
-                  {/* Scheduled Time Off Card */}
-                  <div className="bg-white rounded-3xl sm:rounded-4xl border border-gray-100 shadow-sm p-6 sm:p-8">
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-                      <h3 className="text-xl sm:text-2xl font-bold text-gray-900 font-playfair">Scheduled Time Off</h3>
-                      <button
-                        onClick={() => setIsTimeOffModalOpen(true)}
-                        className="flex items-center justify-center gap-2 px-6 py-3 border border-primary text-primary rounded-xl font-bold font-dm hover:bg-primary/5 duration-300 w-full sm:w-auto"
-                      >
-                        <HiOutlinePlus className="size-4" />
-                        <span>Add Time Off</span>
-                      </button>
-                    </div>
-
-                    <div className="space-y-4">
-                      {timeOff.length > 0 ? (
-                        timeOff.map((item, index) => (
-                          <div key={`${item.startDate}-${index}`} className="flex items-center justify-between p-4 sm:p-6 bg-primary/5 rounded-2xl group border border-primary/5 hover:border-primary/10 duration-300">
-                            <div className="flex items-center gap-4 sm:gap-5">
-                              <div className="size-10 sm:size-12 rounded-xl bg-white flex items-center justify-center shadow-sm shrink-0">
-                                <HiOutlineCalendar className="size-5 sm:size-6 text-primary" />
-                              </div>
-                              <div className="min-w-0">
-                                <p className="text-sm sm:text-base font-bold text-gray-900 font-dm truncate">{buildTimeOffLabel(item)}</p>
-                                <p className="text-xs sm:text-sm text-gray-400 font-medium font-dm mt-0.5 truncate">{item.title}</p>
-                              </div>
-                            </div>
-                            <button
-                              onClick={() => deleteTimeOff(index)}
-                              className="text-gray-300 hover:text-red-500 duration-300 ml-4"
-                            >
-                              <HiOutlineX className="size-5 sm:size-6" />
-                            </button>
-                          </div>
-                        ))
-                      ) : (
-                        <div className="py-12 flex flex-col items-center justify-center text-center space-y-3 bg-gray-50/50 rounded-3xl border border-dashed border-gray-200">
-                          <div className="size-14 rounded-2xl bg-white flex items-center justify-center shadow-sm text-gray-300">
-                            <HiOutlineCalendar className="size-7" />
-                          </div>
-                          <div className="space-y-1">
-                            <p className="text-base font-bold text-gray-900 font-dm">No time off scheduled</p>
-                            <p className="text-sm text-gray-400 font-medium font-dm">You haven't scheduled any time off yet.</p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
                 </div>
 
                 <div className="space-y-8">
@@ -641,75 +541,6 @@ const AvailabilityPage = () => {
         </div>
       </main>
 
-      {/* Time Off Modal */}
-      {isTimeOffModalOpen && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-          <div
-            className="absolute inset-0 bg-gray-900/40 backdrop-blur-sm"
-            onClick={() => setIsTimeOffModalOpen(false)}
-          />
-          <div className="relative w-full max-w-lg bg-white rounded-4xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-300">
-            <div className="p-8 border-b border-gray-50 flex items-center justify-between">
-              <h3 className="text-2xl font-bold text-gray-900 font-playfair">Schedule Time Off</h3>
-              <button
-                onClick={() => setIsTimeOffModalOpen(false)}
-                className="size-10 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 hover:text-red-500 duration-300"
-              >
-                <HiOutlineX className="size-5" />
-              </button>
-            </div>
-            <form onSubmit={handleAddTimeOff} className="p-8 space-y-6">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-[13px] font-bold text-gray-900 font-dm">Start Date</label>
-                  <input
-                    type="date"
-                    value={newTimeOff.startDate}
-                    onChange={(e) => setNewTimeOff({ ...newTimeOff, startDate: e.target.value })}
-                    className="w-full bg-white border border-gray-200 rounded-2xl p-4 outline-none focus:border-primary focus:ring-1 focus:ring-primary duration-300 text-gray-900 font-medium text-sm sm:text-base font-dm shadow-sm"
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[13px] font-bold text-gray-900 font-dm">End Date (Optional)</label>
-                  <input
-                    type="date"
-                    value={newTimeOff.endDate}
-                    onChange={(e) => setNewTimeOff({ ...newTimeOff, endDate: e.target.value })}
-                    className="w-full bg-white border border-gray-200 rounded-2xl p-4 outline-none focus:border-primary focus:ring-1 focus:ring-primary duration-300 text-gray-900 font-medium text-sm sm:text-base font-dm shadow-sm"
-                  />
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-[13px] font-bold text-gray-900 font-dm">Reason / Label</label>
-                <input
-                  type="text"
-                  placeholder="e.g. Vacation, Personal, Medical"
-                  value={newTimeOff.title}
-                  onChange={(e) => setNewTimeOff({ ...newTimeOff, title: e.target.value })}
-                  className="w-full bg-white border border-gray-200 rounded-2xl p-4 outline-none focus:border-primary focus:ring-1 focus:ring-primary duration-300 text-gray-900 font-medium placeholder:text-gray-400 text-sm sm:text-base font-dm shadow-sm"
-                  required
-                />
-              </div>
-              <div className="pt-4 flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => setIsTimeOffModalOpen(false)}
-                  className="flex-1 h-14 bg-gray-50 text-gray-500 rounded-2xl font-bold font-dm hover:bg-gray-100 duration-300"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="flex-2 h-14 bg-gradient-primary text-white rounded-2xl font-bold font-dm shadow-lg shadow-primary/20 hover:shadow-xl duration-300"
-                >
-                  Schedule Time Off
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

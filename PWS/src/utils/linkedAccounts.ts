@@ -25,7 +25,10 @@ export function getUserId(user: SessionUser | null | undefined): string {
 
 function getUserName(user: SessionUser): string {
   const direct =
-    getString(user.name) || getString(user.fullName) || getString(user.displayName);
+    getString(user.name) ||
+    getString(user.fullName) ||
+    getString(user.displayName) ||
+    getString(user.username);
   if (direct) return direct;
   const firstName = getString(user.firstName);
   const lastName = getString(user.lastName);
@@ -115,6 +118,7 @@ export function getDashboardPathForRole(role: string): string {
   if (role === 'admin') return '/admin';
   if (role === 'looking_for_care') return '/patient';
   if (role === 'care_provider') return '/dashboard';
+  if (role === 'user') return '/dashboard';
   return '/dashboard';
 }
 
@@ -122,6 +126,7 @@ const ROLE_PATH_PREFIXES: Record<string, string[]> = {
   admin: ['/admin'],
   looking_for_care: ['/patient'],
   care_provider: ['/dashboard', '/care-requests', '/clients', '/messages', '/settings'],
+  user: ['/dashboard', '/care-requests', '/clients', '/messages', '/settings', '/patient'],
 };
 
 /** Prefer the page the user was on (e.g. after refresh) when it matches their role. */

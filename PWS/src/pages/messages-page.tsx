@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { consumePendingChat } from '../utils/chatPending';
 import { clsx } from 'clsx';
 
@@ -53,6 +54,7 @@ const MessagesPage = () => {
   const { rawUser, isHydrated } = useUser();
   const { initiateCall } = useCall();
   const myUserId = getUserId(rawUser);
+  const queryClient = useQueryClient();
   const navigate = useNavigate();
   const pendingHandledRef = useRef(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -61,77 +63,93 @@ const MessagesPage = () => {
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
   const [isChatOpenOnMobile, setIsChatOpenOnMobile] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [conversations, setConversations] = useState<any[]>([]);
-  const [activeMessages, setActiveMessages] = useState<DisplayMessage[]>([]);
-  const [activePeer, setActivePeer] = useState<{ id: string; name: string; avatar: string; status: string } | null>(null);
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  const loadConversations = useCallback(async () => {
-    if (!myUserId) return;
-    setLoading(true);
-    try {
-      const res = await listChatConversationsAPI();
-      setConversations(Array.isArray(res.data) ? res.data : []);
-    } catch (err: any) {
-      setError(err.message || 'Failed to load conversations');
-    } finally {
-      setLoading(false);
-    }
-  }, [myUserId]);
+  const { data: conversations = [], isLoading } = useQuery({
+    queryKey: ['conversations'],
+    queryFn: () => listChatConversationsAPI().then(r => (Array.isArray(r.data) ? r.data : [])),
+    enabled: !!myUserId,
+  });
 
-  const loadConversation = useCallback(
-    async (conversationKey: string) => {
-      setError('');
-      try {
-        const res = await getChatConversationAPI(conversationKey);
-        const conv = res.data;
-        const peer = getOtherParticipant(conv, myUserId);
-        setActivePeer({
-          id: peer._id || peer.id,
-          name: peer.name,
-          avatar: peer.photoUrl || avatarFallback(peer.name),
-          status: peer.role === 'looking_for_care' ? 'Client' : 'PSW · Care Provider',
+  const { data: conversationData } = useQuery({
+    queryKey: ['conversation', activeConversationId],
+    queryFn: () => getChatConversationAPI(activeConversationId!).then(r => r.data),
+    enabled: !!activeConversationId,
+  });
+
+  const activeMessages = useMemo<DisplayMessage[]>(() => {
+    if (!conversationData?.messages) return [];
+    return (Array.isArray(conversationData.messages) ? conversationData.messages : [])
+      .map((msg: Record<string, unknown>) => mapRawToDisplay(msg, myUserId));
+  }, [conversationData, myUserId]);
+
+  const activePeer = useMemo(() => {
+    if (!conversationData) return null;
+    const peer = getOtherParticipant(conversationData, myUserId);
+    return {
+      id: peer._id || peer.id,
+      name: peer.name,
+      avatar: peer.photoUrl || avatarFallback(peer.name),
+      status: peer.role === 'looking_for_care' ? 'Client' : 'PSW · Care Provider',
+    };
+  }, [conversationData, myUserId]);
+
+  const sendMessageMutation = useMutation({
+    mutationFn: ({ conversationKey, text }: { conversationKey: string; text: string }) =>
+      sendChatMessageAPI(conversationKey, text),
+    onSuccess: (res, { conversationKey }) => {
+      const newMessage = res?.data?.message as Record<string, unknown> | undefined;
+      if (newMessage) {
+        queryClient.setQueryData(['conversation', conversationKey], (old: any) => {
+          if (!old) return old;
+          return {
+            ...old,
+            messages: appendMessageIfNew(Array.isArray(old.messages) ? [...old.messages] : [], newMessage),
+          };
         });
-        setActiveMessages(
-          (Array.isArray(conv.messages) ? conv.messages : []).map((msg: Record<string, unknown>) =>
-            mapRawToDisplay(msg, myUserId),
-          ),
-        );
-      } catch (err: any) {
-        setError(err.message || 'Failed to load messages');
+        queryClient.setQueryData<any[]>(['conversations'], (old) => {
+          if (!old) return old;
+          const idx = old.findIndex((c) => c.conversationKey === conversationKey);
+          if (idx === -1) return old;
+          const updated = [...old];
+          updated[idx] = { ...updated[idx], messages: appendMessageIfNew(
+            Array.isArray(updated[idx].messages) ? [...updated[idx].messages] : [], newMessage
+          ), lastMessageAt: String(newMessage.sentAt || new Date().toISOString()) };
+          return updated.sort(
+            (a, b) => new Date(b.lastMessageAt || 0).getTime() - new Date(a.lastMessageAt || 0).getTime(),
+          );
+        });
+      } else {
+        queryClient.invalidateQueries({ queryKey: ['conversation', conversationKey] });
       }
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
     },
-    [myUserId],
-  );
+    onError: (err: any) => {
+      setError(err.message || 'Failed to send message');
+    },
+  });
 
   const openWithOtherUser = useCallback(
     async (otherUserId: string) => {
-      // Hard guard: never create a conversation with yourself.
-      // This covers all call sites (pending-chat, direct navigation, etc.)
       if (!otherUserId || (myUserId && otherUserId === myUserId)) return;
       try {
         const res = await getOrCreateChatConversationAPI(otherUserId);
         const conv = res.data;
-        await loadConversations();
+        queryClient.invalidateQueries({ queryKey: ['conversations'] });
         setActiveConversationId(conv.conversationKey);
         setIsChatOpenOnMobile(true);
-        await loadConversation(conv.conversationKey);
       } catch (err: any) {
         setError(err.message || 'Failed to open conversation');
       }
     },
-    [loadConversation, loadConversations],
+    [queryClient],
   );
-
-  const scrollToBottom = useCallback(() => {
-    // Scrolling is handled internally by ChatWindow's scroll container
-  }, []);
 
   const upsertConversationFromSocket = useCallback(
     (payload: { conversationKey?: string; message?: Record<string, unknown>; lastMessageAt?: string }) => {
       if (!payload?.conversationKey) return;
-      setConversations((prev) => {
+      queryClient.setQueryData<any[]>(['conversations'], (prev) => {
+        if (!prev) return prev;
         const idx = prev.findIndex((c) => c.conversationKey === payload.conversationKey);
         if (idx === -1) return prev;
         const updated = [...prev];
@@ -148,24 +166,22 @@ const MessagesPage = () => {
         );
       });
     },
-    [],
+    [queryClient],
   );
 
   const appendIncomingMessage = useCallback(
     (incoming: Record<string, unknown>) => {
-      const display = mapRawToDisplay(incoming, myUserId);
-      setActiveMessages((prev) => {
-        if (prev.some((m) => m.id === display.id)) return prev;
-        return [...prev, display];
+      if (!activeConversationId) return;
+      queryClient.setQueryData(['conversation', activeConversationId], (old: any) => {
+        if (!old) return old;
+        const display = mapRawToDisplay(incoming, myUserId);
+        const msgs = Array.isArray(old.messages) ? [...old.messages] : [];
+        if (msgs.some((m: any) => String(m._id || '') === String(incoming._id || ''))) return old;
+        return { ...old, messages: [...msgs, incoming] };
       });
-      scrollToBottom();
     },
-    [myUserId, scrollToBottom],
+    [activeConversationId, myUserId, queryClient],
   );
-
-  useEffect(() => {
-    loadConversations();
-  }, [loadConversations]);
 
   useEffect(() => {
     if (!myUserId) return undefined;
@@ -182,15 +198,9 @@ const MessagesPage = () => {
   });
 
   useEffect(() => {
-    scrollToBottom();
-  }, [activeMessages, scrollToBottom]);
-
-  useEffect(() => {
     if (!isHydrated || !myUserId || pendingHandledRef.current) return;
     const pending = consumePendingChat();
     if (!pending?.otherUserId) return;
-    // Guard: never open a conversation with yourself (can happen if a stale
-    // pending-chat entry survives an account switch).
     if (pending.otherUserId === myUserId) return;
     pendingHandledRef.current = true;
     void openWithOtherUser(pending.otherUserId);
@@ -224,31 +234,14 @@ const MessagesPage = () => {
         }
       : null;
 
-  const handleSelectConversation = async (id: string) => {
+  const handleSelectConversation = (id: string) => {
     setActiveConversationId(id);
     setIsChatOpenOnMobile(true);
-    await loadConversation(id);
   };
 
-  const handleSendMessage = async (text: string) => {
+  const handleSendMessage = (text: string) => {
     if (!activeConversationId) return;
-    try {
-      const res = await sendChatMessageAPI(activeConversationId, text);
-      const newMessage = res?.data?.message as Record<string, unknown> | undefined;
-      if (newMessage) {
-        appendIncomingMessage(newMessage);
-        upsertConversationFromSocket({
-          conversationKey: activeConversationId,
-          message: newMessage,
-          lastMessageAt: String(newMessage.sentAt || new Date().toISOString()),
-        });
-      } else {
-        await loadConversation(activeConversationId);
-      }
-      await loadConversations();
-    } catch (err: any) {
-      setError(err.message || 'Failed to send message');
-    }
+    sendMessageMutation.mutate({ conversationKey: activeConversationId, text });
   };
 
   const handleStartCall = async () => {
@@ -284,7 +277,7 @@ const MessagesPage = () => {
                 isChatOpenOnMobile ? 'hidden md:block' : 'block',
               )}
             >
-              {loading ? (
+              {isLoading ? (
                 <p className="p-6 text-sm text-gray-400">Loading conversations...</p>
               ) : (
                 <ChatList

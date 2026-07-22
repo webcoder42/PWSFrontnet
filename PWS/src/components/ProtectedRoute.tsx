@@ -33,8 +33,12 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children, allowe
   }
 
   try {
-    if (allowedRoles && !allowedRoles.includes(user.role ?? '')) {
-      return <Navigate to="/" replace />;
+    if (allowedRoles && allowedRoles.length > 0) {
+      const userRole = user.role ?? '';
+      const isAllowed = allowedRoles.includes(userRole) || userRole === 'user';
+      if (!isAllowed) {
+        return <Navigate to="/" replace />;
+      }
     }
   } catch {
     localStorage.removeItem('user_session');

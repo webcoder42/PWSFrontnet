@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { loadStripe } from '@stripe/stripe-js';
 import { Elements, CardNumberElement, CardExpiryElement, CardCvcElement, useStripe, useElements } from '@stripe/react-stripe-js';
-import { useUser } from '../../../context/UserContext';
+import { useUser } from '../../context/UserContext';
+import { useQueryClient } from '@tanstack/react-query';
+import { useLocation } from 'react-router-dom';
 import Breadcrumb from './Breadcrumb';
+import { API_BASE_URL } from '../../utils/api';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:3000/api';
 // Use the valid key matching server configuration
 const stripePromise = loadStripe(import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY || 'pk_test_51RYgjMQ4qneyrHeVtWFFCcP0DVUNlAGGBSf5aDQSdRBOq1XCD2SQ9vG4DfuXzyDeCEmgTaKaY8CUeaza6J4lVzJa00ISNmrGOg');
 
@@ -40,10 +42,22 @@ const getBrandLogo = (brand) => {
   }
 };
 
-const BillingFormContent = ({ setView }) => {
-  const { rawUser: user, setUser } = useUser();
+const BillingFormContent = ({ setView, onNavigate }) => {
+  const { user, updateUser } = useUser();
   const stripe = useStripe();
   const elements = useElements();
+  const queryClient = useQueryClient();
+  const location = useLocation();
+
+  const fromBooking = location.state?.fromBooking;
+
+  const handleBack = () => {
+    if (fromBooking && onNavigate) {
+      onNavigate('Appointments');
+    } else {
+      setView('main');
+    }
+  };
 
   const [paymentMethods, setPaymentMethods] = useState([]);
   const [isLoadingMethods, setIsLoadingMethods] = useState(false);
@@ -181,6 +195,8 @@ const BillingFormContent = ({ setView }) => {
         cardNumberEl.clear();
         elements.getElement(CardExpiryElement)?.clear();
         elements.getElement(CardCvcElement)?.clear();
+        // Invalidate cache
+        queryClient.invalidateQueries({ queryKey: ['client-stripe-wallet', userId] });
         // Refresh cards list
         await fetchPaymentMethods();
       } else {
@@ -233,8 +249,16 @@ const BillingFormContent = ({ setView }) => {
 
       if (response.ok && data.success) {
         setAddressSuccess('Billing address updated successfully!');
-        if (setUser && data.data) {
-          setUser(data.data);
+        if (updateUser) {
+          updateUser({
+            address: {
+              street: streetAddress,
+              city: city,
+              province: state,
+              postalCode: postalCode,
+              country: country
+            }
+          });
         }
       } else {
         setAddressError(data.message || 'Failed to update billing address.');
@@ -249,7 +273,7 @@ const BillingFormContent = ({ setView }) => {
 
   return (
     <div className="animate-fade-in max-w-6xl mx-auto pb-20">
-      <Breadcrumb current="Billing & Payments" setView={setView} />
+      <Breadcrumb current="Billing & Payments" setView={handleBack} />
       <h2 className="text-4xl font-bold text-gray-900 mb-2 font-serif">Billing & Payment</h2>
       <p className="text-xs text-gray-400 mb-12 leading-relaxed max-w-2xl">Manage your practice's subscription, payment methods, and billing information with clinical precision.</p>
       
@@ -438,7 +462,7 @@ const BillingFormContent = ({ setView }) => {
 
           {/* Action Buttons */}
           <div className="flex justify-end gap-6 pt-8">
-            <button type="button" onClick={() => setView('main')} className="px-10 py-4 text-sm font-bold text-gray-500 hover:text-gray-800 transition-colors">Cancel</button>
+            <button type="button" onClick={handleBack} className="px-10 py-4 text-sm font-bold text-gray-500 hover:text-gray-800 transition-colors">Cancel</button>
             <button 
               type="button" 
               onClick={handleSaveAddress} 
@@ -457,10 +481,10 @@ const BillingFormContent = ({ setView }) => {
   );
 };
 
-const BillingView = ({ setView }) => {
+const BillingView = ({ setView, onNavigate }) => {
   return (
     <Elements stripe={stripePromise}>
-      <BillingFormContent setView={setView} />
+      <BillingFormContent setView={setView} onNavigate={onNavigate} />
     </Elements>
   );
 };

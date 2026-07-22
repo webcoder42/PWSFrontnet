@@ -1,52 +1,63 @@
 import React, { useState } from 'react';
 import { HiOutlineExclamationCircle, HiOutlineEye, HiOutlineEyeOff, HiCheckCircle } from 'react-icons/hi';
 import { clsx } from 'clsx';
+import { useMutation } from '@tanstack/react-query';
+import { useUser } from '../../../context/UserContext';
+import { changePasswordAPI } from '../../../utils/api';
 
 const ChangePasswordSection = () => {
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
   const [showRetype, setShowRetype] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
+  const { rawUser } = useUser();
   const [formData, setFormData] = useState({
     currentPassword: '',
     newPassword: '',
     retypePassword: ''
   });
 
+  const changePasswordMutation = useMutation({
+    mutationFn: (data: { oldPassword: string; newPassword: string }) =>
+      changePasswordAPI(String(rawUser?._id || rawUser?.id), data),
+    onSuccess: () => {
+      setFormData({ currentPassword: '', newPassword: '', retypePassword: '' });
+      setValidationError(null);
+      setTimeout(() => changePasswordMutation.reset(), 5000);
+    },
+  });
+
+  const error = validationError || (changePasswordMutation.isError
+    ? (changePasswordMutation.error instanceof Error ? changePasswordMutation.error.message : 'Failed to change password.')
+    : null);
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    setError(null);
+    setValidationError(null);
 
-    // Basic Validation
     if (!formData.currentPassword || !formData.newPassword || !formData.retypePassword) {
-      setError("Please fill in all fields.");
+      setValidationError('Please fill in all fields.');
       return;
     }
 
     if (formData.newPassword.length < 8) {
-      setError("New password must be at least 8 characters long.");
+      setValidationError('New password must be at least 8 characters long.');
       return;
     }
 
     if (formData.newPassword !== formData.retypePassword) {
-      setError("New passwords do not match.");
+      setValidationError('New passwords do not match.');
       return;
     }
 
-    setIsLoading(true);
+    const userId = rawUser?._id || rawUser?.id;
+    if (!userId) return;
 
-    // Simulate API call
-    setTimeout(() => {
-      setIsLoading(false);
-      setSuccess(true);
-      setFormData({ currentPassword: '', newPassword: '', retypePassword: '' });
-
-      // Reset success message after 5 seconds
-      setTimeout(() => setSuccess(false), 5000);
-    }, 2000);
+    changePasswordMutation.mutate({
+      oldPassword: formData.currentPassword,
+      newPassword: formData.newPassword,
+    });
   };
 
   return (
@@ -62,7 +73,7 @@ const ChangePasswordSection = () => {
           </p>
         </div>
 
-        {success && (
+        {changePasswordMutation.isSuccess && (
           <div className="bg-emerald-50 border border-emerald-100 p-4 sm:p-6 rounded-2xl flex gap-3 sm:gap-4 mb-8 animate-in zoom-in duration-300">
             <HiCheckCircle className="size-5 sm:size-6 text-emerald-500 shrink-0 mt-0.5" />
             <p className="text-xs sm:text-sm text-emerald-800 font-bold font-dm leading-relaxed">
@@ -150,14 +161,14 @@ const ChangePasswordSection = () => {
         <div className="pt-8 sm:pt-10">
           <button
             type="submit"
-            disabled={isLoading}
+            disabled={changePasswordMutation.isPending}
             className={clsx(
               "w-full py-4 sm:py-5 bg-gradient-purple text-white font-bold text-lg sm:text-xl rounded-full shadow-lg shadow-primary/20 hover:shadow-xl hover:scale-[1.01] duration-300 active:scale-95 flex items-center justify-center gap-3",
-              isLoading && "opacity-70 cursor-not-allowed"
+              changePasswordMutation.isPending && "opacity-70 cursor-not-allowed"
             )}
           >
-            {isLoading && <div className="size-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
-            {isLoading ? 'Updating...' : 'Change password'}
+            {changePasswordMutation.isPending && <div className="size-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+            {changePasswordMutation.isPending ? 'Updating...' : 'Change password'}
           </button>
         </div>
       </form>

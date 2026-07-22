@@ -57,6 +57,8 @@ export interface ProfileFormData {
   profilePhoto: string;
   savedPaymentMethods: SavedPaymentMethod[];
   stripeEmail?: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface ProfileErrors {
@@ -89,6 +91,8 @@ export interface ProviderProfileFormData {
   postalCode: string;
   city: string;
   province: string;
+  latitude?: number;
+  longitude?: number;
   serviceRadius: number;
   gender: string;
   pronouns: string;

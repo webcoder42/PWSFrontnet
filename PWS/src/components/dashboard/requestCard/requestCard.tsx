@@ -5,7 +5,6 @@ import {
   HiOutlineClock,
   HiOutlineCheckCircle,
   HiOutlineXCircle,
-  HiOutlineBadgeCheck,
 } from 'react-icons/hi';
 
 import { updateAppointmentStatusAPI } from '../../../utils/api';
@@ -17,6 +16,7 @@ import {
 
 interface RequestCardProps {
   appointmentId: string;
+  appointment?: any;
   name: string;
   type: string;
   image?: string;
@@ -27,10 +27,12 @@ interface RequestCardProps {
   status: DisplayStatus;
   paymentStatus?: string;
   onStatusChange?: (appointmentId: string, newStatus: DisplayStatus) => void;
+  onViewDetails?: (appointment: any) => void;
 }
 
 const RequestCard: React.FC<RequestCardProps> = ({
   appointmentId,
+  appointment,
   name,
   type,
   image,
@@ -41,6 +43,7 @@ const RequestCard: React.FC<RequestCardProps> = ({
   status: initialStatus,
   paymentStatus = 'unpaid',
   onStatusChange,
+  onViewDetails,
 }) => {
   const [currentStatus, setCurrentStatus] = useState(initialStatus);
   const [updating, setUpdating] = useState(false);
@@ -49,12 +52,13 @@ const RequestCard: React.FC<RequestCardProps> = ({
     setCurrentStatus(initialStatus);
   }, [initialStatus]);
 
-  const { canConfirm, canComplete, canCancel, showActions } = getStatusActions(currentStatus);
+  const { canConfirm, canCancel, showActions } = getStatusActions(currentStatus);
 
-  const handleStatusUpdate = async (apiStatus: 'confirmed' | 'completed' | 'cancelled') => {
+  const handleStatusUpdate = async (apiStatus: 'confirmed' | 'completed' | 'cancelled', e?: React.MouseEvent) => {
     if (updating) return;
     setUpdating(true);
     try {
+      if (e) e.stopPropagation();
       const response = await updateAppointmentStatusAPI(appointmentId, apiStatus);
       const next = toDisplayStatus(response.data?.status || apiStatus);
       setCurrentStatus(next);
@@ -68,14 +72,19 @@ const RequestCard: React.FC<RequestCardProps> = ({
   };
 
   return (
-    <div className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-black/5 duration-500 group flex flex-col md:flex-row md:items-center justify-between gap-6 relative">
+    <div onClick={() => onViewDetails?.(appointment || { _id: appointmentId })} className="bg-white rounded-3xl p-6 border border-gray-100 shadow-sm hover:shadow-xl hover:shadow-black/5 duration-500 group flex flex-col md:flex-row md:items-center justify-between gap-6 relative cursor-pointer">
       <div className="flex items-center gap-5">
         <div className={clsx(
           "size-16 rounded-full flex items-center justify-center text-xl font-bold font-dm shrink-0 overflow-hidden",
           !image && color
         )}>
           {image ? (
-            <img src={image} alt={name} className="size-full object-cover" />
+            <img
+              src={image}
+              alt={name}
+              className="size-full object-cover"
+              onError={(e) => { e.currentTarget.onerror = null; e.currentTarget.src = `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(name)}`; }}
+            />
           ) : (
             initials
           )}
@@ -124,7 +133,7 @@ const RequestCard: React.FC<RequestCardProps> = ({
               <button
                 type="button"
                 disabled={updating}
-                onClick={() => handleStatusUpdate('confirmed')}
+                onClick={(e) => handleStatusUpdate('confirmed', e)}
                 title="Confirm appointment"
                 className={clsx(
                   "size-9 sm:size-10 rounded-xl flex items-center justify-center duration-300 border",
@@ -136,29 +145,13 @@ const RequestCard: React.FC<RequestCardProps> = ({
               </button>
             )}
 
-            {canComplete && (
-              <button
-                type="button"
-                disabled={updating}
-                onClick={() => handleStatusUpdate('completed')}
-                title="Mark as completed"
-                className={clsx(
-                  "size-9 sm:size-10 rounded-xl flex items-center justify-center duration-300 border",
-                  "bg-white text-gray-400 border-gray-100 hover:bg-blue-50 hover:text-blue-600 hover:border-blue-100",
-                  updating && "opacity-50 cursor-not-allowed"
-                )}
-              >
-                <HiOutlineBadgeCheck className="size-5 sm:size-6" />
-              </button>
-            )}
-
             {canCancel && (
               <>
-                {(canConfirm || canComplete) && <div className="w-px h-6 bg-gray-100 mx-0.5" />}
+                {canConfirm && <div className="w-px h-6 bg-gray-100 mx-0.5" />}
                 <button
                   type="button"
                   disabled={updating}
-                  onClick={() => handleStatusUpdate('cancelled')}
+                  onClick={(e) => handleStatusUpdate('cancelled', e)}
                   title="Cancel appointment"
                   className={clsx(
                     "size-9 sm:size-10 rounded-xl flex items-center justify-center duration-300 border",

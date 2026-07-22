@@ -1,6 +1,10 @@
 import React from 'react';
 
-const PswsStats = ({ psws }) => (
+const PswsStats = ({ psws }) => {
+  const verified = psws.filter((p) => p.pswCertificateStatus === 'approved').length;
+  const pending = psws.filter((p) => (p.pswCertificateStatus || 'pending') === 'pending').length;
+  const rejected = psws.filter((p) => p.pswCertificateStatus === 'rejected').length;
+  return (
   <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
     <div className="bg-white p-8 rounded-[2rem] border border-gray-50 shadow-sm">
       <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-2">Total PSWs</p>
@@ -16,7 +20,20 @@ const PswsStats = ({ psws }) => (
         {psws.length ? (psws.reduce((acc, curr) => acc + (curr.rating || 0), 0) / psws.length).toFixed(1) : '0.0'}
       </h3>
     </div>
+    <div className="bg-white p-8 rounded-[2rem] border border-gray-50 shadow-sm">
+      <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest mb-2">Verified</p>
+      <h3 className="text-4xl font-bold font-serif text-emerald-500">{verified}</h3>
+    </div>
+    <div className="bg-white p-8 rounded-[2rem] border border-gray-50 shadow-sm">
+      <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-2">Pending</p>
+      <h3 className="text-4xl font-bold font-serif text-amber-500">{pending}</h3>
+    </div>
+    <div className="bg-white p-8 rounded-[2rem] border border-gray-50 shadow-sm">
+      <p className="text-[10px] font-bold text-rose-600 uppercase tracking-widest mb-2">Rejected</p>
+      <h3 className="text-4xl font-bold font-serif text-rose-500">{rejected}</h3>
+    </div>
   </div>
-);
+  );
+};
 
 export default PswsStats;

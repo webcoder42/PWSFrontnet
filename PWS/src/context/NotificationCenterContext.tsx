@@ -1,5 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import { subscribeAppointmentChanges, subscribeChatMessages } from '../utils/chatSocket';
+import { useUser } from './UserContext';
+import { normalizeUserId } from '../utils/chatHelpers';
 
 export type NotificationItem = {
   id: string;
@@ -26,9 +28,11 @@ const NotificationCenterContext = createContext<NotificationCenterValue | null>(
 
 const makeId = (): string => `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
 
-const readStored = (): NotificationItem[] => {
+const getStorageKey = (userId?: string | null): string => (userId ? `${STORAGE_KEY}:${userId}` : STORAGE_KEY);
+
+const readStored = (userId?: string | null): NotificationItem[] => {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    const raw = localStorage.getItem(getStorageKey(userId));
     const parsed = raw ? (JSON.parse(raw) as NotificationItem[]) : [];
     return Array.isArray(parsed) ? parsed : [];
   } catch {
@@ -37,15 +41,25 @@ const readStored = (): NotificationItem[] => {
 };
 
 export function NotificationCenterProvider({ children }: { children: React.ReactNode }) {
-  const [notifications, setNotifications] = useState<NotificationItem[]>(readStored);
+  const { rawUser } = useUser();
+  const myUserId = useMemo(
+    () => normalizeUserId(rawUser?._id || rawUser?.id),
+    [rawUser],
+  );
+
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+
+  useEffect(() => {
+    setNotifications(readStored(myUserId));
+  }, [myUserId]);
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(notifications));
+      localStorage.setItem(getStorageKey(myUserId), JSON.stringify(notifications));
     } catch {
       // ignore
     }
-  }, [notifications]);
+  }, [notifications, myUserId]);
 
   const addNotification = useCallback((payload: Omit<NotificationItem, 'id' | 'createdAt' | 'read'>) => {
     setNotifications((prev) => {
@@ -69,7 +83,10 @@ export function NotificationCenterProvider({ children }: { children: React.React
   }, []);
 
   useEffect(() => {
+    if (!myUserId) return;
     const unsubChat = subscribeChatMessages((payload) => {
+      const senderId = normalizeUserId(payload?.message?.senderId);
+      if (!senderId || senderId === myUserId) return;
       const text = String(payload?.message?.text || '').trim();
       if (!text) return;
       const messageId = String(payload?.message?._id || '');
@@ -100,7 +117,7 @@ export function NotificationCenterProvider({ children }: { children: React.React
       unsubChat();
       unsubAppointments();
     };
-  }, [addNotification]);
+  }, [addNotification, myUserId]);
 
   const markRead = useCallback((id: string) => {
     setNotifications((prev) => prev.map((item) => (item.id === id ? { ...item, read: true } : item)));

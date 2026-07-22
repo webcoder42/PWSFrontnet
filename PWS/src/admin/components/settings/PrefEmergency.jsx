@@ -1,13 +1,14 @@
 import React, { useEffect, useState } from 'react';
+import PhoneInput from '../../../components/PhoneInput';
 import Breadcrumb from './Breadcrumb';
 import { useUser } from '../../../context/UserContext';
 import { updateUserProfileAPI } from '../../../utils/api';
 
-const emptyContact = { name: '', relationship: '', phone: '', email: '' };
+const emptyContact = { name: '', relationship: '', phone: '', countryCode: '+1', email: '' };
 
 const PrefEmergency = ({ setView }) => {
   const { rawUser, setUser } = useUser();
-  const [contacts, setContacts] = useState([emptyContact, emptyContact]);
+  const [contacts, setContacts] = useState([{ ...emptyContact }, { ...emptyContact }]);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -19,13 +20,15 @@ const PrefEmergency = ({ setView }) => {
         {
           name: String(existing[0]?.name || ''),
           relationship: String(existing[0]?.relationship || ''),
-          phone: String(existing[0]?.phone || ''),
+          countryCode: '+1',
+          phone: String(existing[0]?.phone || '').replace(/^\+\d+/, ''),
           email: String(existing[0]?.email || ''),
         },
         {
           name: String(existing[1]?.name || ''),
           relationship: String(existing[1]?.relationship || ''),
-          phone: String(existing[1]?.phone || ''),
+          countryCode: '+1',
+          phone: String(existing[1]?.phone || '').replace(/^\+\d+/, ''),
           email: String(existing[1]?.email || ''),
         }
       ]);
@@ -54,10 +57,10 @@ const PrefEmergency = ({ setView }) => {
       .map((contact) => ({
         name: contact.name.trim(),
         relationship: contact.relationship.trim(),
-        phone: contact.phone.trim(),
+        phone: `${contact.countryCode}${contact.phone.replace(/\D/g, '')}`,
         email: contact.email.trim(),
       }))
-      .filter((contact) => contact.name || contact.relationship || contact.phone || contact.email);
+      .filter((contact) => contact.name || contact.relationship || contact.phone.replace(/\D/g, '') || contact.email);
 
     try {
       const response = await updateUserProfileAPI(rawUser._id, {
@@ -78,6 +81,9 @@ const PrefEmergency = ({ setView }) => {
       setIsSaving(false);
     }
   };
+
+  const phoneBtnClass = 'flex items-center gap-2 bg-white border border-[#8b5cf6] rounded-2xl px-4 py-4 cursor-pointer hover:border-purple-400 duration-300 shadow-sm text-sm';
+  const phoneInputClass = 'w-full flex-1 bg-white border border-[#8b5cf6] rounded-2xl px-6 py-4 text-sm outline-none focus:ring-2 focus:ring-purple-200 transition-all shadow-sm';
 
   return (
     <div className="animate-fade-in max-w-4xl mx-auto pb-20">
@@ -115,12 +121,14 @@ const PrefEmergency = ({ setView }) => {
         </div>
         <div className="space-y-2">
           <label className="text-xs font-bold text-gray-900 ml-1">Phone number</label>
-          <input
-            type="text"
+          <PhoneInput
             value={contacts[0].phone}
-            onChange={(e) => updateField(0, 'phone', e.target.value)}
+            onChange={(val) => updateField(0, 'phone', val)}
+            countryCode={contacts[0].countryCode}
+            onCountryCodeChange={(val) => updateField(0, 'countryCode', val)}
             placeholder="123-456-7890"
-            className="w-full px-6 py-4 bg-white border border-[#8b5cf6] rounded-2xl text-sm outline-none focus:ring-2 focus:ring-purple-200 transition-all shadow-sm"
+            countryBtnClass={phoneBtnClass}
+            inputClass={phoneInputClass}
           />
         </div>
         <div className="space-y-2">
@@ -167,12 +175,14 @@ const PrefEmergency = ({ setView }) => {
           </div>
           <div className="space-y-2">
             <label className="text-xs font-bold text-gray-900 ml-1">Phone number</label>
-            <input
-              type="text"
+            <PhoneInput
               value={contacts[1].phone}
-              onChange={(e) => updateField(1, 'phone', e.target.value)}
+              onChange={(val) => updateField(1, 'phone', val)}
+              countryCode={contacts[1].countryCode}
+              onCountryCodeChange={(val) => updateField(1, 'countryCode', val)}
               placeholder="123-456-7890"
-              className="w-full px-6 py-4 bg-white border border-[#8b5cf6] rounded-2xl text-sm outline-none focus:ring-2 focus:ring-purple-200 transition-all shadow-sm"
+              countryBtnClass={phoneBtnClass}
+              inputClass={phoneInputClass}
             />
           </div>
           <div className="space-y-2">

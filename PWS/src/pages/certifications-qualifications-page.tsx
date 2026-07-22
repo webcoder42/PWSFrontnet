@@ -6,6 +6,8 @@ import {
   HiOutlineTrash,
   HiCheckCircle,
   HiOutlineInformationCircle,
+  HiXCircle,
+  HiClock,
 } from 'react-icons/hi';
 
 import { clsx } from 'clsx';
@@ -16,21 +18,26 @@ import { useProviderPreferences } from '../hooks/useProviderPreferences';
 import { fileToBase64 } from '../utils/image';
 import { uploadImageAPI } from '../utils/api';
 
+const statusConfig: Record<string, { label: string; icon: any; bg: string; text: string }> = {
+  approved: { label: 'Verified', icon: HiCheckCircle, bg: 'bg-emerald-50', text: 'text-emerald-600' },
+  pending: { label: 'Pending', icon: HiClock, bg: 'bg-amber-50', text: 'text-amber-600' },
+  rejected: { label: 'Rejected', icon: HiXCircle, bg: 'bg-rose-50', text: 'text-rose-600' },
+};
+
 const CertificationsQualificationsPage = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const navigate = useNavigate();
   const { providerProfile, saveProviderProfile } = useProviderPreferences();
   const [activeTab, setActiveTab] = useState<'certificate' | 'backcheck'>('certificate');
-  const [pswCertificateUrl, setPswCertificateUrl] = useState('');
-  const [backgroundCheckUrl, setBackgroundCheckUrl] = useState('');
 
-  // Certificate File State
+  const [pswCertificates, setPswCertificates] = useState<any[]>([]);
+  const [backgroundChecks, setBackgroundChecks] = useState<any[]>([]);
+
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadSuccess, setUploadSuccess] = useState(false);
 
-  // Backcheck File State
   const [backcheckFile, setBackcheckFile] = useState<File | null>(null);
   const [isBackcheckUploading, setIsBackcheckUploading] = useState(false);
   const [backcheckUploadProgress, setBackcheckUploadProgress] = useState(0);
@@ -39,6 +46,13 @@ const CertificationsQualificationsPage = () => {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const backcheckInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const certs = Array.isArray(providerProfile.pswCertificates) ? providerProfile.pswCertificates : [];
+    const bgs = Array.isArray(providerProfile.backgroundChecks) ? providerProfile.backgroundChecks : [];
+    setPswCertificates(certs);
+    setBackgroundChecks(bgs);
+  }, [providerProfile]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -69,22 +83,16 @@ const CertificationsQualificationsPage = () => {
     }
   };
 
-  useEffect(() => {
-    setPswCertificateUrl(String(providerProfile.pswCertificateUrl || ''));
-    setBackgroundCheckUrl(String(providerProfile.backgroundCheckUrl || ''));
-    if (providerProfile.pswCertificateUrl) setUploadSuccess(true);
-    if (providerProfile.backgroundCheckUrl) setBackcheckUploadSuccess(true);
-  }, [providerProfile]);
+  const getDocuments = () => activeTab === 'certificate' ? pswCertificates : backgroundChecks;
 
   const uploadDocument = async (
     selectedFile: File,
     folder: 'mypsw/provider-certificates' | 'mypsw/provider-background-checks',
     field: 'pswCertificateUrl' | 'backgroundCheckUrl',
-    statusField: 'pswCertificateStatus' | 'backgroundCheckStatus',
+    arrayField: 'pswCertificates' | 'backgroundChecks',
     setProgress: (value: number) => void,
     setUploading: (value: boolean) => void,
     setSuccess: (value: boolean) => void,
-    setUrl: (value: string) => void,
   ) => {
     setUploading(true);
     setProgress(0);
@@ -96,12 +104,28 @@ const CertificationsQualificationsPage = () => {
       const secureUrl = uploadRes?.data?.secureUrl;
       if (!secureUrl) throw new Error('Upload URL missing');
 
+      const newDoc = {
+        url: secureUrl,
+        status: 'pending',
+        uploadedAt: new Date().toISOString(),
+        fileName: selectedFile.name,
+      };
+
+      const currentDocs = activeTab === 'certificate' ? [...pswCertificates] : [...backgroundChecks];
+      currentDocs.push(newDoc);
+
       await saveProviderProfile({
         [field]: secureUrl,
-        [statusField]: 'pending',
+        [arrayField]: currentDocs,
+        [`${arrayField === 'pswCertificates' ? 'pswCertificateStatus' : 'backgroundCheckStatus'}`]: 'pending',
       });
 
-      setUrl(secureUrl);
+      if (activeTab === 'certificate') {
+        setPswCertificates(currentDocs);
+      } else {
+        setBackgroundChecks(currentDocs);
+      }
+
       setProgress(100);
       setSuccess(true);
     } catch (error) {
@@ -118,11 +142,23 @@ const CertificationsQualificationsPage = () => {
       file,
       'mypsw/provider-certificates',
       'pswCertificateUrl',
-      'pswCertificateStatus',
+      'pswCertificates',
       setUploadProgress,
       setIsUploading,
       setUploadSuccess,
-      setPswCertificateUrl,
+    );
+  };
+
+  const uploadBackcheck = () => {
+    if (!backcheckFile) return;
+    void uploadDocument(
+      backcheckFile,
+      'mypsw/provider-background-checks',
+      'backgroundCheckUrl',
+      'backgroundChecks',
+      setBackcheckUploadProgress,
+      setIsBackcheckUploading,
+      setBackcheckUploadSuccess,
     );
   };
 
@@ -131,6 +167,16 @@ const CertificationsQualificationsPage = () => {
     setUploadProgress(0);
     setUploadSuccess(false);
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const StatusBadge = ({ status }: { status: string }) => {
+    const cfg = statusConfig[status] || statusConfig.pending;
+    const Icon = cfg.icon;
+    return (
+      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold ${cfg.bg} ${cfg.text}`}>
+        <Icon className="size-3" /> {cfg.label}
+      </span>
+    );
   };
 
   return (
@@ -177,6 +223,32 @@ const CertificationsQualificationsPage = () => {
                   </button>
                 </div>
               </div>
+
+              {/* History Section */}
+              {getDocuments().length > 0 && (
+                <div className="mb-8">
+                  <h4 className="text-sm font-bold text-gray-900 mb-4">Upload History</h4>
+                  <div className="space-y-3">
+                    {getDocuments().map((doc: any, idx: number) => (
+                      <div key={doc._id || idx} className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm flex items-center gap-4">
+                        <div className="size-10 bg-gray-50 rounded-xl flex items-center justify-center text-gray-400 shrink-0">
+                          <HiOutlineDocumentText className="size-5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-bold text-gray-900 truncate">{doc.fileName || 'Document'}</p>
+                          <p className="text-[10px] text-gray-400">{doc.uploadedAt ? new Date(doc.uploadedAt).toLocaleDateString() : ''}</p>
+                        </div>
+                        <StatusBadge status={doc.status} />
+                        {doc.url && (
+                          <a href={doc.url} target="_blank" rel="noopener noreferrer" className="text-[10px] text-purple-600 font-bold underline hover:text-purple-800 shrink-0">
+                            View
+                          </a>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {activeTab === 'certificate' && (
                 <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
@@ -296,7 +368,6 @@ const CertificationsQualificationsPage = () => {
                     </p>
                   </div>
 
-                  {/* Info Card */}
                   <div className="bg-white rounded-2xl sm:rounded-3xl border border-gray-100 p-4 sm:p-7 flex gap-3 sm:gap-6 mb-6 sm:mb-8 shadow-sm">
                     <div className="size-9 sm:size-12 bg-primary/5 rounded-lg sm:rounded-xl flex items-center justify-center text-primary shrink-0">
                       <HiOutlineInformationCircle className="size-5 sm:size-7" />
@@ -390,19 +461,7 @@ const CertificationsQualificationsPage = () => {
                         {!isBackcheckUploading && !backcheckUploadSuccess && (
                           <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 w-full">
                             <button
-                              onClick={() => {
-                                if (!backcheckFile) return;
-                                void uploadDocument(
-                                  backcheckFile,
-                                  'mypsw/provider-background-checks',
-                                  'backgroundCheckUrl',
-                                  'backgroundCheckStatus',
-                                  setBackcheckUploadProgress,
-                                  setIsBackcheckUploading,
-                                  setBackcheckUploadSuccess,
-                                  setBackgroundCheckUrl,
-                                );
-                              }}
+                              onClick={uploadBackcheck}
                               className="flex-1 bg-gradient-primary text-white py-4 rounded-xl sm:rounded-2xl font-bold text-sm sm:text-base shadow-lg shadow-primary/20 hover:shadow-xl duration-300"
                             >
                               Confirm Upload

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   HiOutlineLocationMarker,
@@ -7,6 +7,8 @@ import {
   HiCheckCircle,
 } from 'react-icons/hi';
 import { MdMyLocation } from 'react-icons/md';
+import { MapContainer, TileLayer, Marker, useMapEvents, useMap } from 'react-leaflet';
+import L from 'leaflet';
 import { clsx } from 'clsx';
 
 import DashboardSidebar from '../components/dashboard/dashboardSidebar/dashboardSidebar';
@@ -14,16 +16,65 @@ import DashboardHeader from '../components/dashboard/dashboardHeader/dashboardHe
 import SettingsHeader from '../components/dashboard/settings/settingsHeader/settingsHeader';
 import { geocodeLocation, useProviderPreferences } from '../hooks/useProviderPreferences';
 
+// Fix Leaflet default icon issue with bundlers
+import 'leaflet/dist/leaflet.css';
+import iconUrl from 'leaflet/dist/images/marker-icon.png';
+import iconRetinaUrl from 'leaflet/dist/images/marker-icon-2x.png';
+import shadowUrl from 'leaflet/dist/images/marker-shadow.png';
+
+L.Icon.Default.mergeOptions({ iconUrl, iconRetinaUrl, shadowUrl });
+
+const DEFAULT_CENTER: [number, number] = [43.7315, -79.7624];
+
+// Custom home/store marker icon (teardrop arrow shape)
+const homeIcon = L.divIcon({
+  className: '',
+  html: `<div style="
+    width: 36px; height: 36px;
+    background: #EF4444;
+    border: 3px solid white;
+    border-radius: 50% 50% 50% 0;
+    transform: rotate(-45deg);
+    box-shadow: 0 2px 10px rgba(239,68,68,0.4);
+    display: flex; align-items: center; justify-content: center;
+  ">
+    <span style="transform: rotate(45deg); color: white; font-size: 16px; font-weight: bold;">&#8593;</span>
+  </div>`,
+  iconSize: [36, 36],
+  iconAnchor: [18, 36],
+  popupAnchor: [0, -40],
+});
+
+function MapClickHandler({ onMapClick }: { onMapClick: (lat: number, lng: number) => void }) {
+  useMapEvents({
+    click(e) {
+      onMapClick(e.latlng.lat, e.latlng.lng);
+    },
+  });
+  return null;
+}
+
+function FlyToCenter({ center }: { center: [number, number] }) {
+  const map = useMap();
+  map.flyTo(center, map.getZoom(), { duration: 1 });
+  return null;
+}
+
 const ServiceAreaPage = () => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const navigate = useNavigate();
-  const { providerProfile, address, saveProviderProfile } = useProviderPreferences();
+  const { rawUser, providerProfile, address, saveProviderProfile } = useProviderPreferences();
   const [radius, setRadius] = useState(15);
   const [location, setLocation] = useState('Brampton, ON');
   const [searchQuery, setSearchQuery] = useState('Brampton, ON');
+  const [markerPos, setMarkerPos] = useState<[number, number]>(DEFAULT_CENTER);
+  const [mapCenter, setMapCenter] = useState<[number, number]>(DEFAULT_CENTER);
+  const [homePos, setHomePos] = useState<[number, number] | null>(null);
+  const [homeLabel, setHomeLabel] = useState('');
   const [isLoadingLocation, setIsLoadingLocation] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const markerRef = useRef<L.Marker | null>(null);
 
   useEffect(() => {
     const savedRadius = Number(providerProfile.serviceRadiusKm);
@@ -39,7 +90,62 @@ const ServiceAreaPage = () => {
       setLocation(label);
       setSearchQuery(label);
     }
-  }, [providerProfile, address]);
+
+    const coords = address?.geojson?.coordinates;
+    if (Array.isArray(coords) && coords.length === 2) {
+      const pos: [number, number] = [coords[1], coords[0]];
+      setMarkerPos(pos);
+      setMapCenter(pos);
+    }
+
+    // Extract home/store location from user's saved address
+    const rawAddr = (rawUser?.address || {}) as Record<string, unknown>;
+    const geoObj = rawAddr?.geojson as Record<string, unknown> | undefined;
+    const storedCoords = geoObj?.coordinates as [number, number] | undefined;
+    if (Array.isArray(storedCoords) && storedCoords.length === 2) {
+      setHomePos([storedCoords[1], storedCoords[0]]);
+    }
+    const sStreet = typeof rawAddr.street === 'string' ? rawAddr.street : '';
+    const sCity = typeof rawAddr.city === 'string' ? rawAddr.city : '';
+    setHomeLabel([sStreet, sCity].filter(Boolean).join(', '));
+  }, [providerProfile, address, rawUser]);
+
+  const reverseGeocodeLatLng = useCallback(async (lat: number, lng: number) => {
+    try {
+      const response = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}`
+      );
+      const data = await response.json();
+      if (data && data.address) {
+        const addr = data.address;
+        const houseNumber = addr.house_number || '';
+        const roadName = addr.road || addr.pedestrian || addr.path || '';
+        const street = [houseNumber, roadName].filter(Boolean).join(' ');
+        const majorCity = addr.city || addr.town || addr.municipality || '';
+        const state = addr.state || '';
+        const parts: string[] = [];
+        if (street) parts.push(street);
+        if (majorCity) parts.push(majorCity);
+        else if (state) parts.push(state);
+        const cleanAddress = parts.join(', ') || `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+        setLocation(cleanAddress);
+        setSearchQuery(cleanAddress);
+      } else {
+        setLocation(`${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+        setSearchQuery(`${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+      }
+    } catch (error) {
+      console.error('Reverse geocoding error:', error);
+      setLocation(`${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+      setSearchQuery(`${lat.toFixed(4)}, ${lng.toFixed(4)}`);
+    }
+  }, []);
+
+  const handleMapClick = useCallback((lat: number, lng: number) => {
+    setMarkerPos([lat, lng]);
+    setMapCenter([lat, lng]);
+    reverseGeocodeLatLng(lat, lng);
+  }, [reverseGeocodeLatLng]);
 
   const handleCurrentLocation = () => {
     if (!navigator.geolocation) {
@@ -51,47 +157,10 @@ const ServiceAreaPage = () => {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
-
-        try {
-
-          const response = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${latitude}&lon=${longitude}`
-          );
-          const data = await response.json();
-
-          if (data && data.address) {
-            const addr = data.address;
-
-
-            const street = addr.road || addr.pedestrian || addr.path || '';
-
-
-            const majorCity = addr.city || addr.town || addr.municipality || '';
-            const state = addr.state || '';
-
-
-            const parts = [];
-            if (street) parts.push(street);
-            if (majorCity) parts.push(majorCity);
-            else if (state) parts.push(state);
-
-            const cleanAddress = parts.join(', ');
-
-            setLocation(cleanAddress);
-            setSearchQuery(cleanAddress);
-          } else {
-            const fallbackLoc = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-            setLocation(fallbackLoc);
-            setSearchQuery(fallbackLoc);
-          }
-        } catch (error) {
-          console.error("Reverse geocoding error:", error);
-          const fallbackLoc = `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
-          setLocation(fallbackLoc);
-          setSearchQuery(fallbackLoc);
-        } finally {
-          setIsLoadingLocation(false);
-        }
+        setMarkerPos([latitude, longitude]);
+        setMapCenter([latitude, longitude]);
+        await reverseGeocodeLatLng(latitude, longitude);
+        setIsLoadingLocation(false);
       },
       (error) => {
         console.error("Geolocation error:", error);
@@ -105,6 +174,13 @@ const ServiceAreaPage = () => {
   const handleLocationChange = () => {
     if (location.trim()) {
       setSearchQuery(location);
+      geocodeLocation(location).then((geo) => {
+        if (geo?.coordinates) {
+          const pos: [number, number] = [geo.coordinates[1], geo.coordinates[0]];
+          setMarkerPos(pos);
+          setMapCenter(pos);
+        }
+      });
     }
   };
 
@@ -130,7 +206,14 @@ const ServiceAreaPage = () => {
                     coordinates: geocoded.coordinates,
                   },
                 }
-              : {}),
+              : markerPos
+                ? {
+                    geojson: {
+                      type: 'Point',
+                      coordinates: [markerPos[1], markerPos[0]],
+                    },
+                  }
+                : {}),
           },
         },
       );
@@ -149,9 +232,6 @@ const ServiceAreaPage = () => {
       setIsSaving(false);
     }
   };
-
-
-  const mapUrl = `https://maps.google.com/maps?q=${encodeURIComponent(searchQuery)}&t=&z=13&ie=UTF8&iwloc=&output=embed`;
 
   return (
     <div className="flex h-screen w-full bg-surface-alt font-dm overflow-hidden">
@@ -179,27 +259,54 @@ const ServiceAreaPage = () => {
             <div className="bg-white rounded-2xl sm:rounded-4xl border border-gray-100 shadow-sm overflow-hidden">
 
               <div className="relative h-[300px] sm:h-[400px] md:h-[500px] lg:h-[550px] w-full bg-gray-100">
-                <iframe
-                  key={searchQuery}
-                  title="Service Area Map"
-                  width="100%"
-                  height="100%"
-                  frameBorder="0"
-                  scrolling="no"
-                  marginHeight={0}
-                  marginWidth={0}
-                  src={mapUrl}
-                  className="contrast-[1.1] brightness-[1.02]"
-                />
-
+                <MapContainer
+                  key={`${mapCenter[0]}-${mapCenter[1]}`}
+                  center={mapCenter}
+                  zoom={13}
+                  style={{ width: '100%', height: '100%' }}
+                  doubleClickZoom={true}
+                  scrollWheelZoom={true}
+                  className="z-0"
+                >
+                  <TileLayer
+                    attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                    url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                  />
+                  <MapClickHandler onMapClick={handleMapClick} />
+                  <Marker
+                    position={markerPos}
+                    draggable={true}
+                    ref={markerRef}
+                    eventHandlers={{
+                      dragend: () => {
+                        const m = markerRef.current;
+                        if (m) {
+                          const pos = m.getLatLng();
+                          setMarkerPos([pos.lat, pos.lng]);
+                          setMapCenter([pos.lat, pos.lng]);
+                          reverseGeocodeLatLng(pos.lat, pos.lng);
+                        }
+                      },
+                    }}
+                  />
+                  {homePos && (
+                    <Marker
+                      position={homePos}
+                      icon={homeIcon}
+                      draggable={false}
+                    >
+                    </Marker>
+                  )}
+                  <FlyToCenter center={mapCenter} />
+                </MapContainer>
 
                 <div className="absolute bottom-4 right-4 sm:bottom-8 sm:right-8 md:bottom-10 md:right-10">
                   <button
                     onClick={handleCurrentLocation}
                     disabled={isLoadingLocation}
-                    title="Get current location"
+                    title="Click on the map to select a location, or use current location"
                     className={clsx(
-                      "size-10 sm:size-12 md:size-14 bg-primary text-white rounded-xl sm:rounded-2xl shadow-2xl shadow-primary/40 flex items-center justify-center hover:scale-110 duration-300 active:scale-95 group z-10",
+                      "size-10 sm:size-12 md:size-14 bg-primary text-white rounded-xl sm:rounded-2xl shadow-2xl shadow-primary/40 flex items-center justify-center hover:scale-110 duration-300 active:scale-95 group z-[1000]",
                       isLoadingLocation && "animate-pulse"
                     )}
                   >
@@ -208,6 +315,18 @@ const ServiceAreaPage = () => {
                 </div>
               </div>
 
+                {homePos && (
+                  <div className="flex items-center gap-6 px-5 sm:px-10 md:px-14 py-3 sm:py-4 bg-gray-50 border-b border-gray-100 text-[11px] sm:text-xs font-bold font-dm text-gray-500">
+                    <div className="flex items-center gap-2">
+                      <div className="size-3 rounded-full bg-primary border-2 border-white shadow-sm" />
+                      <span>Service Area</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <div className="size-3 rounded-sm bg-red-500 border-2 border-white shadow-sm" style={{ transform: 'rotate(45deg)' }} />
+                      <span>Your Location{homeLabel ? ` (${homeLabel})` : ''}</span>
+                    </div>
+                  </div>
+                )}
 
               <div className="p-5 sm:p-10 md:p-14 space-y-8 sm:space-y-12">
 
@@ -296,7 +415,7 @@ const ServiceAreaPage = () => {
                     <HiOutlineLightBulb className="size-6 sm:size-7 text-cyan-500" />
                   </div>
                   <p className="text-[10px] sm:text-sm md:text-base text-cyan-900 font-medium font-dm leading-relaxed">
-                    Your service radius determines how far you're willing to travel from your base location. A larger radius increases your visibility to more families.
+                    Click on the map to select your location, or drag the marker to fine-tune. Single click selects a location, double click zooms in. Your service radius determines how far you're willing to travel from your base location.
                   </p>
                 </div>
 

@@ -81,7 +81,7 @@ export async function geocodeLocation(query: string): Promise<{
 
   return {
     displayName: String(hit.display_name || trimmed),
-    street: address.road || address.pedestrian || trimmed,
+    street: [address.house_number || '', address.road || address.pedestrian || ''].filter(Boolean).join(' ') || trimmed,
     city: address.city || address.town || address.municipality || '',
     province: address.state || '',
     postalCode: address.postcode || '',

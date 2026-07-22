@@ -6,8 +6,21 @@ const getAvatarUrl = (photoUrl, seed) => {
   return `https://api.dicebear.com/7.x/avataaars/svg?seed=${encodeURIComponent(seed || 'User')}`;
 };
 
-const PswCard = ({ psw, onViewProfile, onAssignTask }) => (
-  <div className="bg-white p-8 rounded-[2.5rem] border border-gray-50 shadow-sm group hover:-translate-y-1 transition-all">
+const certConfig = {
+  approved: { label: 'Verified', bg: 'bg-emerald-50', text: 'text-emerald-600' },
+  pending: { label: 'Pending', bg: 'bg-amber-50', text: 'text-amber-600' },
+  rejected: { label: 'Rejected', bg: 'bg-rose-50', text: 'text-rose-600' },
+};
+
+const PswCard = ({ psw, onViewProfile, onAssignTask }) => {
+  const cert = certConfig[psw.pswCertificateStatus] || certConfig.pending;
+  return (
+  <div className="bg-white p-8 rounded-[2.5rem] border border-gray-50 shadow-sm group hover:-translate-y-1 transition-all relative">
+    <div className="absolute top-4 left-4">
+      <span className={`text-[8px] font-bold px-2 py-1 rounded-full uppercase tracking-widest ${cert.bg} ${cert.text}`}>
+        {cert.label}
+      </span>
+    </div>
     <div className="flex justify-between items-start mb-6">
       <img src={getAvatarUrl(psw.photoUrl, psw.seed || psw.name)} className="w-20 h-20 rounded-2xl shadow-md border-4 border-white group-hover:scale-105 transition-transform" alt={psw.name} />
       <div className="text-right">
@@ -31,6 +44,7 @@ const PswCard = ({ psw, onViewProfile, onAssignTask }) => (
       <button onClick={onAssignTask} className="flex-1 bg-purple-600 text-white py-3 rounded-xl font-bold text-[10px] uppercase tracking-widest hover:bg-purple-700 transition-colors shadow-lg shadow-purple-50">Assign Task</button>
     </div>
   </div>
-);
+  );
+};
 
 export default PswCard;

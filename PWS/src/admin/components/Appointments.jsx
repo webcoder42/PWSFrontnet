@@ -11,7 +11,6 @@ const Appointments = ({ onNavigate }) => {
 
   const handleCreateAssignment = (assignmentData) => {
     addAppointment(assignmentData);
-    setActiveView('list');
   };
 
   return (

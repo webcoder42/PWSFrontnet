@@ -1,46 +1,76 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
 import StepIndicator from './StepIndicator';
 import BookingStep1 from './BookingStep1';
 import BookingStep2 from './BookingStep2';
 import BookingStep3 from './BookingStep3';
-import BookingStep4 from './BookingStep4';
 import BookingStepPayment from './BookingStepPayment';
-import { useUser } from '../../../context/UserContext';
-import { createAppointmentAPI, confirmAppointmentWithPaymentAPI } from '../../../utils/api';
-import { savePendingChat } from '../../../utils/chatPending';
-import { formatReadableDate, formatSlotLabel } from '../../utils/providerAvailability';
-import { computeBookingEstimate } from '../../../utils/servicePricing';
+import BookingStep4 from './BookingStep4';
+import { useUser } from '../../context/UserContext';
+import { useStripeWalletQuery } from '../../hooks/useClientQueries';
+import { confirmAppointmentWithPaymentAPI, createAppointmentAPI } from '../../utils/api';
+import { computeBookingEstimate, findBookingService } from '../../utils/servicePricing';
 
-const BookingFlow = ({ onBackToDashboard, onNavigateToAppointments, onReschedule }) => {
-  const navigate = useNavigate();
-  const { rawUser, profile } = useUser();
-  const [bookingStep, setBookingStep] = useState(1);
-  const [selectedService, setSelectedService] = useState(null);
-  const [selectedProvider, setSelectedProvider] = useState(null);
-  const [selectedDate, setSelectedDate] = useState(new Date());
-  const [selectedTime, setSelectedTime] = useState(null);
-  const [selectedDuration, setSelectedDuration] = useState(60);
-  const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
-  const handleServiceSelect = (service) => {
-    setSelectedService(service);
-    setSelectedProvider(null);
-    setSelectedTime(null);
-  };
-
-  const handleProviderSelect = (provider) => {
-    setSelectedProvider(provider);
-    setSelectedTime(null);
-  };
-
-  const handleDateTimeSelect = ({ date, time, duration }) => {
-    setSelectedDate(date);
-    setSelectedTime(time);
-    if (duration !== undefined) {
-      setSelectedDuration(duration);
+const BookingFlow = ({ onBackToDashboard, onNavigateToAppointments, onReschedule, onNavigate }) => {
+  const savedState = (() => {
+    try {
+      const val = localStorage.getItem('pws_booking_state');
+      return val ? JSON.parse(val) : null;
+    } catch (e) {
+      return null;
     }
+  })();
+
+  const { user } = useUser();
+  const [bookingStep, setBookingStep] = useState(() => savedState?.bookingStep || 1);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [selectedService, setSelectedService] = useState(() => savedState?.selectedService || null);
+  const [selectedProvider, setSelectedProvider] = useState(() => savedState?.selectedProvider || null);
+  const [bookingDetails, setBookingDetails] = useState(() => savedState?.bookingDetails || {
+    date: '',
+    dateInput: '',
+    time: '',
+    duration: '1 hour',
+  });
+  const [selectedPaymentMethodId, setSelectedPaymentMethodId] = useState(() => savedState?.selectedPaymentMethodId || null);
+
+  const uId = user?._id || user?.id;
+  const { data: walletData, isLoading: isLoadingPaymentMethods } = useStripeWalletQuery(uId);
+  const paymentMethods = walletData?.data?.wallet?.stripePaymentMethods || [];
+
+  // Auto-select default or first card when payment methods load
+  useEffect(() => {
+    if (paymentMethods.length > 0 && !selectedPaymentMethodId) {
+      const defaultCard = paymentMethods.find(m => m.isDefault);
+      setSelectedPaymentMethodId(defaultCard ? defaultCard.paymentMethodId : paymentMethods[0].paymentMethodId);
+    }
+  }, [paymentMethods, selectedPaymentMethodId]);
+
+  // Save booking state to localStorage
+  useEffect(() => {
+    if (bookingStep > 1) {
+      const stateToSave = {
+        bookingStep,
+        selectedService,
+        selectedProvider,
+        bookingDetails,
+        selectedPaymentMethodId,
+      };
+      localStorage.setItem('pws_booking_state', JSON.stringify(stateToSave));
+    }
+  }, [bookingStep, selectedService, selectedProvider, bookingDetails, selectedPaymentMethodId]);
+
+  const clearSavedState = () => {
+    localStorage.removeItem('pws_booking_state');
+  };
+
+  const handleBackToDashboard = () => {
+    clearSavedState();
+    if (onBackToDashboard) onBackToDashboard();
+  };
+
+  const handleNavigateToAppointments = () => {
+    clearSavedState();
+    if (onNavigateToAppointments) onNavigateToAppointments();
   };
 
   const renderBookingStep = () => {
@@ -49,8 +79,8 @@ const BookingFlow = ({ onBackToDashboard, onNavigateToAppointments, onReschedule
         return (
           <BookingStep1
             selectedService={selectedService}
-            onServiceSelect={handleServiceSelect}
-            onBack={onBackToDashboard}
+            onServiceSelect={setSelectedService}
+            onBack={handleBackToDashboard}
             onContinue={() => setBookingStep(2)}
           />
         );
@@ -59,7 +89,7 @@ const BookingFlow = ({ onBackToDashboard, onNavigateToAppointments, onReschedule
           <BookingStep2
             selectedService={selectedService}
             selectedProvider={selectedProvider}
-            onProviderSelect={handleProviderSelect}
+            onProviderSelect={setSelectedProvider}
             onBack={() => setBookingStep(1)}
             onContinue={() => setBookingStep(3)}
           />
@@ -69,9 +99,9 @@ const BookingFlow = ({ onBackToDashboard, onNavigateToAppointments, onReschedule
           <BookingStep3
             selectedService={selectedService}
             selectedProvider={selectedProvider}
-            selectedDate={selectedDate}
-            selectedTime={selectedTime}
-            onDateTimeSelect={handleDateTimeSelect}
+            bookingDetails={bookingDetails}
+            onBookingDetailsChange={setBookingDetails}
+            isSubmitting={isSubmitting}
             onBack={() => setBookingStep(2)}
             onContinue={() => setBookingStep(4)}
           />
@@ -80,14 +110,14 @@ const BookingFlow = ({ onBackToDashboard, onNavigateToAppointments, onReschedule
         return (
           <BookingStepPayment
             selectedService={selectedService}
-            selectedProvider={selectedProvider}
-            selectedDate={selectedDate}
-            selectedTime={selectedTime}
-            selectedDuration={selectedDuration}
+            bookingDetails={bookingDetails}
+            paymentMethods={paymentMethods}
             selectedPaymentMethodId={selectedPaymentMethodId}
-            onPaymentMethodSelect={setSelectedPaymentMethodId}
+            onPaymentMethodChange={setSelectedPaymentMethodId}
+            isLoadingPaymentMethods={isLoadingPaymentMethods}
             onBack={() => setBookingStep(3)}
             onContinue={() => setBookingStep(5)}
+            onNavigate={onNavigate}
           />
         );
       case 5:
@@ -95,71 +125,139 @@ const BookingFlow = ({ onBackToDashboard, onNavigateToAppointments, onReschedule
           <BookingStep4
             selectedService={selectedService}
             selectedProvider={selectedProvider}
-            selectedDate={selectedDate}
-            selectedTime={selectedTime}
-            selectedDuration={selectedDuration}
-            onBackToDashboard={onBackToDashboard}
-            onNavigateToAppointments={onNavigateToAppointments}
-            onReschedule={onReschedule}
+            bookingDetails={bookingDetails}
             isSubmitting={isSubmitting}
-            onMessageProvider={() => {
-              const pswId = selectedProvider?._id || selectedProvider?.id;
-              if (!pswId) return;
-              // Guard: never open a chat with yourself (can happen if the
-              // logged-in user IS the selected provider after an account switch).
-              const myId = rawUser?._id || rawUser?.id || '';
-              if (String(pswId) === String(myId)) return;
-              const providerName =
-                selectedProvider?.fullName ||
-                [selectedProvider?.firstName, selectedProvider?.lastName].filter(Boolean).join(' ') ||
-                'Care Provider';
-              savePendingChat({
-                otherUserId: String(pswId),
-                peerName: providerName,
-                peerPhoto: selectedProvider?.photoUrl || '',
-              });
-              navigate('/patient/messages');
-            }}
+            paymentMethods={paymentMethods}
+            selectedPaymentMethodId={selectedPaymentMethodId}
+            isLoadingPaymentMethods={isLoadingPaymentMethods}
+            onBack={() => setBookingStep(4)}
+            onBackToDashboard={handleBackToDashboard}
+            onReschedule={onReschedule}
+            onNavigateToAppointments={handleNavigateToAppointments}
             onConfirmBooking={async () => {
-              if (isSubmitting) return false;
+              if (isSubmitting) return { success: false, error: 'Already submitting' };
               setIsSubmitting(true);
               try {
-                const { total: price } = computeBookingEstimate(selectedService, selectedDuration);
+                // Duration in minutes for computeBookingEstimate (matching mobile app)
+                const durationMinutes = (() => {
+                  const lower = String(bookingDetails.duration || '').toLowerCase();
+                  if (lower.includes('1.5')) return 90;
+                  if (lower.includes('2.5')) return 150;
+                  if (lower.includes('3.5')) return 210;
+                  if (lower.includes('3+') || lower.includes('3 ')) return 180;
+                  if (lower.includes('4')) return 240;
+                  if (lower.includes('2')) return 120;
+                  if (lower.includes('hour')) return 60;
+                  const match = lower.match(/(\d+)/);
+                  return match ? Number(match[1]) * 60 : 60;
+                })();
+                const estimate = computeBookingEstimate(selectedService, durationMinutes);
+                const price = Number(estimate.total.toFixed(2));
 
-                const uId = rawUser?._id || rawUser?.id || profile?.id || '5f8d04b3b54764421b7156c0';
-                const pId = selectedProvider?._id || selectedProvider?.id || '5f8d04b3b54764421b7156c1';
+                const uId = user?._id || user?.id;
+                const pId = selectedProvider?._id;
 
-                const formattedDate = selectedDate ? formatReadableDate(new Date(selectedDate)) : 'Date pending';
-                const rawTime = selectedTime || 'Time pending';
-                const durationString = selectedDuration >= 180 ? '3+ hours' : selectedDuration === 120 ? '2 hours' : selectedDuration === 90 ? '1.5 hours' : '1 hour';
+                if (!uId) {
+                  return {
+                    success: false,
+                    error: 'No authenticated patient session found. Please sign in again.'
+                  };
+                }
 
-                const appointmentResponse = await createAppointmentAPI({
+                if (!pId) {
+                  return {
+                    success: false,
+                    error: 'No care provider selected. Please pick a provider first.'
+                  };
+                }
+
+                if (!bookingDetails?.time) {
+                  return {
+                    success: false,
+                    error: 'Please select an appointment time before confirming.'
+                  };
+                }
+
+                if (!bookingDetails?.duration) {
+                  return {
+                    success: false,
+                    error: 'Please select an appointment duration before confirming.'
+                  };
+                }
+
+                const appointmentDate = bookingDetails.dateInput || bookingDetails.date;
+                if (!appointmentDate) {
+                  return {
+                    success: false,
+                    error: 'Please select an appointment date before confirming.'
+                  };
+                }
+
+                console.log('📱 Creating appointment...');
+                
+                const appointmentData = await createAppointmentAPI({
                   userId: uId,
                   pswId: pId,
-                  service: selectedService?.name || 'Respite Care',
-                  date: formattedDate,
-                  time: rawTime,
-                  duration: durationString,
+                  service: selectedService?.name || 'Selected service',
+                  date: appointmentDate,
+                  time: bookingDetails.time,
+                  duration: bookingDetails.duration,
                   price: price,
-                  location: '123 Queen St.'
+                  location: '123 Queen St.' // Default for now
                 });
 
-                const appointmentId = appointmentResponse?.data?._id || appointmentResponse?.data?.appointment?._id;
-                if (!appointmentId) {
-                  throw new Error('Failed to create appointment: No appointment ID returned');
+                const newAppointmentId = appointmentData.data?._id;
+                
+                if (!newAppointmentId) {
+                  console.error('❌ No appointment ID returned');
+                  return { 
+                    success: false, 
+                    error: 'Failed to create appointment'
+                  };
                 }
 
-                if (!selectedPaymentMethodId) {
-                  throw new Error('Please select a payment method before confirming your booking.');
+                console.log('✅ Appointment created:', newAppointmentId);
+
+                // Step 2: Process payment if payment method is selected
+                if (selectedPaymentMethodId) {
+                  console.log('💳 Processing payment with card:', selectedPaymentMethodId);
+                  try {
+                    const paymentResult = await confirmAppointmentWithPaymentAPI(
+                      newAppointmentId, 
+                      selectedPaymentMethodId, 
+                      uId
+                    );
+                    
+                    console.log('✅ Payment processed:', paymentResult);
+                    clearSavedState();
+                    
+                    return {
+                      success: true,
+                      chargeId: paymentResult.chargeId,
+                      message: paymentResult.message
+                    };
+                  } catch (paymentError) {
+                    console.error('❌ Payment processing failed:', paymentError);
+                    return {
+                      success: false,
+                      error: paymentError.message || 'Payment processing failed'
+                    };
+                  }
                 }
 
-                await confirmAppointmentWithPaymentAPI(appointmentId, selectedPaymentMethodId, uId);
-                return true;
+                // No payment method selected - just return success
+                clearSavedState();
+                return {
+                  success: true,
+                  chargeId: null,
+                  message: 'Appointment created successfully'
+                };
               } catch (error) {
-                console.error('Error creating appointment:', error);
-                const message = error.message || 'Server error';
-                alert(message.includes('already booked') ? message : `Failed to book appointment: ${message}`);
-                return false;
+                console.error('❌ Error creating appointment:', error);
+                return {
+                  success: false,
+                  error: error.message || 'Network error. Please try again.'
+                };
               } finally {
                 setIsSubmitting(false);
               }

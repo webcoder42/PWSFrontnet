@@ -1,4 +1,4 @@
-import { bookingServices } from '../../../utils/servicePricing';
+import { bookingServices } from '../../utils/servicePricing';
 
 export const steps = ['Service', 'Choose PSW', 'Date & Time', 'Payment', 'Review'];
 

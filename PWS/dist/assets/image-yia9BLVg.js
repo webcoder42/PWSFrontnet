@@ -1,0 +1,1 @@
+var e=e=>new Promise((t,n)=>{let r=new FileReader;r.onload=()=>t(String(r.result||``)),r.onerror=()=>n(Error(`Unable to read selected image file.`)),r.readAsDataURL(e)});export{e as t};

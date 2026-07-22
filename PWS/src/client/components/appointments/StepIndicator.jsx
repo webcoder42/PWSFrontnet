@@ -2,10 +2,10 @@ import React from 'react';
 import { steps } from './AppointmentData';
 
 const StepIndicator = ({ currentStep }) => (
-  <div className="flex items-center justify-center mb-12">
+  <div className="flex items-center justify-center mb-12 overflow-x-auto px-2">
     {steps.map((step, index) => (
       <React.Fragment key={step}>
-        <div className="flex flex-col items-center relative">
+        <div className="flex flex-col items-center relative shrink-0">
           <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm transition-all duration-300 ${
             currentStep > index + 1 ? 'bg-purple-600 text-white' : 
             currentStep === index + 1 ? 'bg-purple-600 text-white shadow-lg shadow-purple-200 scale-110' : 
@@ -24,7 +24,7 @@ const StepIndicator = ({ currentStep }) => (
           </span>
         </div>
         {index < steps.length - 1 && (
-          <div className={`w-24 h-1 mx-4 transition-colors duration-300 ${
+          <div className={`w-12 md:w-24 h-1 mx-2 md:mx-4 shrink-0 transition-colors duration-300 ${
             currentStep > index + 1 ? 'bg-purple-600' : 'bg-gray-100'
           }`} />
         )}

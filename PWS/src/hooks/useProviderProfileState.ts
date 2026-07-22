@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import type { Dispatch, SetStateAction, ChangeEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import type { ProviderProfileFormData, ProfileErrors } from '../types/profile';
-import { registerUserAPI, uploadImageAPI } from '../utils/api';
+import { registerUserAPI } from '../utils/api';
 import { encryptData } from '../utils/security';
 
 interface UseProviderProfileStateReturn {
@@ -232,29 +232,15 @@ export const useProviderProfileState = (): UseProviderProfileStateReturn => {
 
         const firstName = formData.firstName.trim() || 'Test';
         const lastName = formData.lastName.trim() || 'User';
-        const phone = formData.phone.trim() ? `${formData.countryCode}${formData.phone.replace(/\D/g, '')}` : `${formData.countryCode}5550199`;
+        const phone = formData.phone.trim() ? `${formData.countryCode}${formData.phone.replace(/\D/g, '')}` : '';
         const street = formData.streetAddress.trim() || '123 Care Street';
         const postalCode = formData.postalCode.trim() || 'M5V 2T6';
         const city = formData.city.trim() || 'Toronto';
         const province = formData.province.trim() || 'ON';
 
         let photoUrl = formData.profilePhoto || undefined;
-        if (typeof photoUrl === 'string' && photoUrl.startsWith('data:')) {
-          const uploadRes = await uploadImageAPI(photoUrl, 'mypsw/profile-images');
-          photoUrl = uploadRes?.data?.secureUrl || undefined;
-        }
-
-        let pswCertificateUrl: string | undefined;
-        if (typeof formData.pswCertificate === 'string' && formData.pswCertificate.startsWith('data:')) {
-          const uploadRes = await uploadImageAPI(formData.pswCertificate, 'mypsw/provider-certificates');
-          pswCertificateUrl = uploadRes?.data?.secureUrl || undefined;
-        }
-
-        let backgroundCheckUrl: string | undefined;
-        if (typeof formData.backgroundCheck === 'string' && formData.backgroundCheck.startsWith('data:')) {
-          const uploadRes = await uploadImageAPI(formData.backgroundCheck, 'mypsw/provider-background-checks');
-          backgroundCheckUrl = uploadRes?.data?.secureUrl || undefined;
-        }
+        let pswCertificateUrl = typeof formData.pswCertificate === 'string' && formData.pswCertificate.startsWith('data:') ? formData.pswCertificate : undefined;
+        let backgroundCheckUrl = typeof formData.backgroundCheck === 'string' && formData.backgroundCheck.startsWith('data:') ? formData.backgroundCheck : undefined;
 
         const payload = {
           email,
@@ -274,7 +260,13 @@ export const useProviderProfileState = (): UseProviderProfileStateReturn => {
             street,
             postalCode,
             city,
-            province
+            province,
+            ...(formData.latitude && formData.longitude ? {
+              geojson: {
+                type: 'Point' as const,
+                coordinates: [formData.longitude, formData.latitude]
+              }
+            } : {})
           },
           gender: formData.gender,
           pronouns: formData.pronouns || undefined,
@@ -293,6 +285,8 @@ export const useProviderProfileState = (): UseProviderProfileStateReturn => {
             pswCertificateStatus: 'pending',
             backgroundCheckUrl,
             backgroundCheckStatus: 'pending',
+            pswCertificates: pswCertificateUrl ? [{ url: pswCertificateUrl, status: 'pending', uploadedAt: new Date(), fileName: pswCertificateUrl.split('/').pop() || 'certificate' }] : [],
+            backgroundChecks: backgroundCheckUrl ? [{ url: backgroundCheckUrl, status: 'pending', uploadedAt: new Date(), fileName: backgroundCheckUrl.split('/').pop() || 'background-check' }] : [],
             yearsOfExperience,
             specializations: formData.specializations,
             bio: formData.professionalBio || 'No biography details provided.',
@@ -314,20 +308,14 @@ export const useProviderProfileState = (): UseProviderProfileStateReturn => {
 
         const res = await registerUserAPI(payload);
 
-        // Store user session so the user is authenticated immediately
-        if (res && res.data) {
-          localStorage.setItem('user_session', encryptData({
-            ...(res.data as Record<string, unknown>),
-            token: res.token,
-          }));
-        }
+        const userEmail = payload.email || sessionStorage.getItem('signup_email') || '';
 
         sessionStorage.removeItem('signup_email');
         sessionStorage.removeItem('signup_password');
         sessionStorage.removeItem('signup_role');
         sessionStorage.removeItem('signup_care_type');
 
-        navigate('/setup-complete');
+        navigate(`/verify-email?email=${encodeURIComponent(userEmail)}`);
       } catch (err: any) {
         console.error(err);
         alert(err.message || 'Registration failed. Please check details and try again.');
